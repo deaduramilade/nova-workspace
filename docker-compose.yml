@@ -1,0 +1,66 @@
+
+#### 2. **Improved `docker-compose.yml`** (Replace your current file)
+
+```yaml
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nova-postgres
+    environment:
+      POSTGRES_DB: nova_db
+      POSTGRES_USER: nova_user
+      POSTGRES_PASSWORD: nova_secure_password
+    volumes:
+      - ./volumes/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+    mem_limit: 512m
+    cpu_limit: 1
+
+  redis:
+    image: redis:7-alpine
+    container_name: nova-redis
+    command: redis-server --save 60 1
+    volumes:
+      - ./volumes/redis:/data
+    restart: unless-stopped
+    mem_limit: 256m
+    cpu_limit: 0.5
+
+  neko:
+    image: m1k1o/neko:firefox
+    container_name: nova-neko
+    environment:
+      NEKO_PASSWORD: nova
+      NEKO_ADMIN_PASSWORD: admin
+    ports:
+      - "5210:5210"
+    restart: unless-stopped
+    mem_limit: 768m
+    cpu_limit: 1
+
+  ollama:
+    image: ollama/ollama
+    container_name: nova-ollama
+    volumes:
+      - ./volumes/ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+    mem_limit: 2g
+    cpu_limit: 2
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Frontend and Backend will be added in later steps
+
+volumes:
+  postgres:
+  redis:
+  ollama:
