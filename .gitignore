@@ -70,3 +70,4 @@ backend/app/models/__pycache__/workspace.cpython-314.pyc
 backend/app/models/__pycache__/workspace.cpython-314.pyc
 backend/app/models/__pycache__/workspace.cpython-314.pyc
 *.pyc
+*.pyc
