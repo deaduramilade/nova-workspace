@@ -1,22 +1,68 @@
-# Dependencies
-node_modules/
-frontend/node_modules/
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
 
-# Environment variables
-.env
-frontend/.env.local
+# C extensions
+*.so
 
-# Build outputs
-frontend/.next/
-frontend/out/
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Logs
-*.log
-npm-debug.log*
+# Virtual environments
+.venv
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Volumes
+# Nova Specific
 volumes/
+.env
+*.log
+
+# Python
+alembic/versions/
+
+# Next.js / Frontend
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+frontend/.env.local
+frontend/.env*.local
+frontend/.env
+frontend/next-env.d.ts
+
+# Cache
+**/.cache
+**/.npm
+**/.yarn
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
