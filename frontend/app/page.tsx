@@ -1,13 +1,34 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function NovaDashboard() {
-  const [onlineUsers] = useState([
-    { id: 1, name: "John Doe", status: "Working", location: "Workspace 1", avatar: "JD" },
-    { id: 2, name: "Alice Smith", status: "In Meeting", location: "Workspace 2", avatar: "AS" },
-    { id: 3, name: "Michael Chen", status: "Available", location: "Workspace 1", avatar: "MC" },
-  ]);
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      router.push('/login');
+    } else {
+      setIsAuthenticated(true);
+    }
+    setLoading(false);
+  }, [router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 flex items-center justify-center text-white">
+        Loading workspace...
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 text-white flex">
@@ -30,6 +51,7 @@ export default function NovaDashboard() {
               <button className="glass px-6 py-3 rounded-2xl text-sm font-medium hover:bg-white/10 transition-all">
                 New Workspace
               </button>
+              
               <div className="flex items-center gap-3">
                 <div className="text-right">
                   <div className="text-sm font-medium">Samuel Okunribido</div>
@@ -58,7 +80,11 @@ export default function NovaDashboard() {
             <h3 className="text-lg font-semibold mb-6 text-white/90">Your Workspaces</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="glass-card rounded-3xl p-8 cursor-pointer hover:shadow-2xl" onClick={() => window.location.href = `/workspace/${i}`}>
+                <div 
+                  key={i} 
+                  className="glass-card rounded-3xl p-8 cursor-pointer hover:shadow-2xl"
+                  onClick={() => window.location.href = `/workspace/${i}`}
+                >
                   <div className="flex justify-between items-start mb-6">
                     <h4 className="text-xl font-semibold">AI Agent Collaboration {i}</h4>
                     <span className="px-4 py-1 bg-emerald-500/20 text-emerald-400 text-xs rounded-full font-medium">Active</span>
@@ -89,14 +115,18 @@ export default function NovaDashboard() {
         </main>
       </div>
 
-      {/* Real-time Online Users Sidebar - Glassmorphism */}
+      {/* Real-time Online Users Sidebar */}
       <div className="w-80 border-l border-white/10 bg-black/40 backdrop-blur-xl p-6 hidden lg:block">
         <h3 className="text-lg font-semibold mb-6">Online Now</h3>
         <div className="space-y-4">
-          {onlineUsers.map((user) => (
-            <div key={user.id} className="glass p-4 rounded-2xl flex items-center gap-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-purple-500 rounded-full flex items-center justify-center font-semibold">
-                {user.avatar}
+          {[
+            { name: "John Doe", status: "Working", location: "Workspace 1" },
+            { name: "Alice Smith", status: "In Meeting", location: "Workspace 2" },
+            { name: "Michael Chen", status: "Available", location: "Workspace 1" }
+          ].map((user, index) => (
+            <div key={index} className="glass p-4 rounded-2xl flex items-center gap-4">
+              <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-purple-500 rounded-full flex items-center justify-center font-semibold text-sm">
+                {user.name.split(' ').map(n => n[0]).join('')}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-medium truncate">{user.name}</div>
@@ -107,10 +137,6 @@ export default function NovaDashboard() {
               </div>
             </div>
           ))}
-        </div>
-
-        <div className="mt-10 pt-6 border-t border-white/10">
-          <p className="text-xs text-white/50">Supervisor View • Live Monitoring Enabled</p>
         </div>
       </div>
     </div>
