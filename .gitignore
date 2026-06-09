@@ -90,3 +90,5 @@ frontend/public/globe.svg
 frontend/public/next.svg
 frontend/public/vercel.svg
 frontend/public/window.svg
+/backend/alembic
+*.example
