@@ -1,73 +1,92 @@
-# Byte-compiled / optimized / DLL files
+# ========================================
+# Python & Backend
+# ========================================
 __pycache__/
 *.py[cod]
-*$py.class
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+alembic/versions/
+alembic/README
+alembic/script.py.mako
+*.cpython-*.pyc
 
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual environments
-.venv
+# Virtual Environment
+.venv/
 venv/
 ENV/
 env/
 
-# IDE
+# Environment variables
+.env
+.env*.local
+*.env
+
+# ========================================
+# Frontend - Next.js
+# ========================================
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+frontend/.env*.local
+frontend/next-env.d.ts
+frontend/.eslintcache
+frontend/.cache
+frontend/tsconfig.tsbuildinfo
+
+# Next.js generated files
+frontend/public/*.svg
+frontend/**/tsconfig.tsbuildinfo
+
+# Package files (regenerate on clone)
+frontend/package-lock.json
+
+# ========================================
+# Docker & Volumes
+# ========================================
+volumes/
+.dockerignore
+
+# ========================================
+# IDE, Editor & Tools
+# ========================================
 .vscode/
 .idea/
+*.swp
+*.swo
+*.sublime-*
+CLAUDE.md
+AGENTS.md
 
-# OS
+# ========================================
+# OS & Temporary
+# ========================================
 .DS_Store
 Thumbs.db
-
-# Nova Specific
-volumes/
-.env
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Python
-alembic/versions/
-
-# Next.js / Frontend
-frontend/.next/
-frontend/out/
-frontend/node_modules/
-frontend/.env.local
-frontend/.env*.local
-frontend/.env
-frontend/next-env.d.ts
-
-# Cache
+# ========================================
+# Build & Misc
+# ========================================
+dist/
+build/
+coverage/
+*.sqlite3
+*.db
+**/__pycache__/
 **/.cache
 **/.npm
 **/.yarn
 
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-backend/app/models/__pycache__/workspace.cpython-314.pyc
-backend/app/models/__pycache__/workspace.cpython-314.pyc
-backend/app/models/__pycache__/workspace.cpython-314.pyc
-*.pyc
-*.pyc
+# Temporary GitHub files
+frontend/favicons/
+frontend/public/file.svg
+frontend/public/globe.svg
+frontend/public/next.svg
+frontend/public/vercel.svg
+frontend/public/window.svg

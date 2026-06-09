@@ -11,7 +11,13 @@ services:
     volumes:
       - ./volumes/postgres:/var/lib/postgresql/data
     restart: unless-stopped
-    mem_limit: 512m
+    ports:
+      - "5432:5432"          # ← This was missing
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
 
   redis:
     image: redis:7-alpine
@@ -19,7 +25,11 @@ services:
     volumes:
       - ./volumes/redis:/data
     restart: unless-stopped
-    mem_limit: 256m
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
   neko:
     image: m1k1o/neko:firefox
@@ -30,7 +40,11 @@ services:
     ports:
       - "5210:5210"
     restart: unless-stopped
-    mem_limit: 768m
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 768M
 
   ollama:
     image: ollama/ollama
@@ -40,22 +54,11 @@ services:
     ports:
       - "11434:11434"
     restart: unless-stopped
-    mem_limit: 2g
-
-  backend:
-    build: ./backend
-    container_name: nova-backend
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://nova_user:nova_secure_password@postgres:5432/nova_db
-    depends_on:
-      - postgres
-      - redis
-    restart: unless-stopped
-    mem_limit: 768m
-    volumes:
-      - ./backend:/app
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 2G
 
 volumes:
   postgres:
