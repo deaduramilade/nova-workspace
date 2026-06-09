@@ -19,11 +19,7 @@ export default function NovaDashboard() {
   }, [router]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 flex items-center justify-center text-white">
-        Loading workspace...
-      </div>
-    );
+    return <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 flex items-center justify-center text-white">Loading workspace...</div>;
   }
 
   if (!isAuthenticated) {
@@ -51,7 +47,6 @@ export default function NovaDashboard() {
               <button className="glass px-6 py-3 rounded-2xl text-sm font-medium hover:bg-white/10 transition-all">
                 New Workspace
               </button>
-              
               <div className="flex items-center gap-3">
                 <div className="text-right">
                   <div className="text-sm font-medium">Samuel Okunribido</div>
@@ -75,7 +70,35 @@ export default function NovaDashboard() {
             </p>
           </div>
 
-          {/* Workspaces */}
+          {/* Supervisor Oversight Panel */}
+          <div className="mb-12 glass rounded-3xl p-8">
+            <h3 className="text-lg font-semibold mb-6 text-white/90">Supervisor Oversight - Live Monitoring</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="glass p-6 rounded-2xl">
+                <h4 className="font-medium mb-4">Active Workspaces</h4>
+                <div className="space-y-4 text-sm">
+                  <div className="flex justify-between">
+                    <span>AI Agent Collaboration 1</span>
+                    <span className="text-emerald-400">4 Humans • 7 Agents</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>AI Agent Collaboration 2</span>
+                    <span className="text-emerald-400">3 Humans • 5 Agents</span>
+                  </div>
+                </div>
+              </div>
+              <div className="glass p-6 rounded-2xl">
+                <h4 className="font-medium mb-4">Recent Activity</h4>
+                <div className="text-sm text-white/70 space-y-2">
+                  <div>John Doe edited code in Workspace 1</div>
+                  <div>Alice Smith invited new AI Agent</div>
+                  <div>Michael Chen completed task in Workspace 3</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Workspaces Grid */}
           <div className="mb-12">
             <h3 className="text-lg font-semibold mb-6 text-white/90">Your Workspaces</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -97,25 +120,10 @@ export default function NovaDashboard() {
               ))}
             </div>
           </div>
-
-          <div>
-            <h3 className="text-lg font-semibold mb-6 text-white/90">Quick Actions</h3>
-            <div className="flex flex-wrap gap-4">
-              <button className="glass px-8 py-4 rounded-3xl hover:scale-[1.02] transition-all text-base font-medium">
-                Start New Session
-              </button>
-              <button className="glass px-8 py-4 rounded-3xl hover:scale-[1.02] transition-all text-base font-medium">
-                Invite AI Agent
-              </button>
-              <button className="glass px-8 py-4 rounded-3xl hover:scale-[1.02] transition-all text-base font-medium">
-                Join Session
-              </button>
-            </div>
-          </div>
         </main>
       </div>
 
-      {/* Real-time Online Users Sidebar */}
+      {/* Online Users Sidebar */}
       <div className="w-80 border-l border-white/10 bg-black/40 backdrop-blur-xl p-6 hidden lg:block">
         <h3 className="text-lg font-semibold mb-6">Online Now</h3>
         <div className="space-y-4">
