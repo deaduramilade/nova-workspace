@@ -10,10 +10,10 @@ main.py
 # Python / FastAPI backend
 # ========================================
 # IMPORTANT: Source .py files (the actual application code) must be committed.
-# We only ignore build artifacts, caches, and Alembic's template file.
-# Do NOT add broad *.py rules — they break the ability to track backend source
-# (including critical files like alembic/env.py).
+# We only ignore build artifacts and caches.
+# Do NOT add broad *.py rules — they break the ability to track backend source.
 
+# Only ignore the raw mako template if it appears outside of an alembic/ directory
 script.py.mako
 **/script.py.mako
 
@@ -24,6 +24,16 @@ __pycache__/
 *$py.class
 *.so
 .Python
+
+# Explicitly protect the Alembic migrations folder and its critical files.
+# These negations ensure the alembic/ directory, env.py, and migration scripts
+# are never ignored, even if someone adds broader rules later.
+!alembic/
+!**/alembic/
+!**/alembic/env.py
+!**/alembic/script.py.mako
+!**/alembic/versions/
+!**/alembic/versions/*.py
 
 # Virtual environments (root or nested)
 .venv/
