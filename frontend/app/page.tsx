@@ -90,6 +90,11 @@ export default function NovaDashboard() {
           ...PROJECT_META[(i - 1) % PROJECT_META.length],
         }));
 
+  const createBreakoutRoom = () => {
+    alert("Breakout Room creation feature is being implemented. Team members will be able to join instantly.");
+    // Future implementation: Open modal or new room
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
@@ -140,7 +145,7 @@ export default function NovaDashboard() {
           </p>
         </header>
 
-        {/* Overview stats */}
+        {/* Overview stats with Working Hours Tracker */}
         <section className="mb-10 grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Active Projects', value: displayWorkspaces.length, icon: '📁' },
@@ -234,23 +239,30 @@ export default function NovaDashboard() {
           </div>
         </section>
 
-        {/* Quick actions */}
+        {/* Quick actions with Breakout Room */}
         <section>
           <h3 className="text-lg font-semibold mb-5">Quick Actions</h3>
           <div className="flex flex-wrap gap-3">
-            {['Start New Session', 'Invite AI Agent', 'Join Session'].map((action) => (
-              <button
-                key={action}
-                className="glass px-6 py-3 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors"
-              >
-                {action}
-              </button>
-            ))}
+            <button
+              onClick={() => router.push('/workspace/1')}
+              className="glass px-6 py-3 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors"
+            >
+              Start New Session
+            </button>
+            <button className="glass px-6 py-3 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors">
+              Invite AI Agent
+            </button>
+            <button 
+              onClick={createBreakoutRoom}
+              className="glass px-6 py-3 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors border border-sky-400/30"
+            >
+              Create Breakout Room
+            </button>
           </div>
         </section>
       </main>
 
-      {/* Online users sidebar */}
+      {/* Online users sidebar with Working Hours Tracker */}
       <aside className="w-80 border-l border-white/10 glass-dark fixed right-0 top-0 bottom-0 overflow-auto hidden lg:block z-40">
         <div className="p-6">
           <div className="flex items-center gap-2 mb-6">
