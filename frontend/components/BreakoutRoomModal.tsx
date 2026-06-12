@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { BreakoutRoom, saveBreakoutRoom } from '../lib/breakoutRooms';
 
 interface OnlineUser {
   name: string;
@@ -9,14 +10,7 @@ interface OnlineUser {
   location: string;
 }
 
-export interface BreakoutRoom {
-  id: string;
-  name: string;
-  topic: string;
-  duration: string;
-  members: string[];
-  createdAt: string;
-}
+export type { BreakoutRoom };
 
 interface BreakoutRoomModalProps {
   isOpen: boolean;
@@ -61,6 +55,7 @@ export default function BreakoutRoomModal({
       members: selectedMembers.length > 0 ? selectedMembers : onlineUsers.map((u) => u.name),
       createdAt: new Date().toISOString(),
     };
+    saveBreakoutRoom(room);
     setCreatedRoom(room);
     onRoomCreated?.(room);
   };
@@ -77,7 +72,7 @@ export default function BreakoutRoomModal({
 
   const copyLink = () => {
     if (!createdRoom) return;
-    const link = `${window.location.origin}/workspace/breakout-${createdRoom.id}`;
+    const link = `${window.location.origin}/breakout-room/${createdRoom.id}`;
     navigator.clipboard.writeText(link).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -86,7 +81,7 @@ export default function BreakoutRoomModal({
 
   const joinRoom = () => {
     if (!createdRoom) return;
-    router.push(`/workspace/breakout-${createdRoom.id}`);
+    router.push(`/breakout-room/${createdRoom.id}`);
     handleClose();
   };
 

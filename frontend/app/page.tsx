@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
+import BreakoutRoomModal, { BreakoutRoom } from '../components/BreakoutRoomModal';
+import { getBreakoutRooms } from '../lib/breakoutRooms';
 
 interface Workspace {
   id: number;
@@ -55,7 +57,7 @@ export default function NovaDashboard() {
   const [showBreakTimer, setShowBreakTimer] = useState(false);
   const [breakTimeLeft, setBreakTimeLeft] = useState(45 * 60);
   const [showBreakoutModal, setShowBreakoutModal] = useState(false);
-  const [activeBreakoutRooms, setActiveBreakoutRooms] = useState<any[]>([]);
+  const [activeBreakoutRooms, setActiveBreakoutRooms] = useState<BreakoutRoom[]>([]);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -79,6 +81,7 @@ export default function NovaDashboard() {
     };
 
     fetchWorkspaces();
+    setActiveBreakoutRooms(getBreakoutRooms());
   }, []);
 
   // Break Timer
@@ -104,14 +107,8 @@ export default function NovaDashboard() {
     setShowBreakoutModal(true);
   };
 
-  const closeBreakoutModal = () => {
-    setShowBreakoutModal(false);
-  };
-
   const playLightGame = () => {
-    toast.success("Light Team Game (Memory Match) launched for break time.");
-    // Future: Open dedicated game page
-    router.push('/game');
+    router.push('/team-game');
   };
 
   const displayWorkspaces = workspaces.length > 0
@@ -333,6 +330,32 @@ export default function NovaDashboard() {
               </div>
             ))}
           </div>
+
+          {activeBreakoutRooms.length > 0 && (
+            <div className="mt-6">
+              <p className="text-xs text-readable-subtle uppercase tracking-wide mb-2">Active Breakout Rooms</p>
+              <div className="space-y-2">
+                {activeBreakoutRooms.map((room) => (
+                  <button
+                    key={room.id}
+                    onClick={() => router.push(`/breakout-room/${room.id}`)}
+                    className="w-full glass rounded-xl p-3 text-left hover:bg-white/5 transition-colors"
+                  >
+                    <p className="text-sm font-medium truncate">{room.name}</p>
+                    <p className="text-[11px] text-readable-subtle truncate">{room.topic}</p>
+                    <p className="text-[10px] text-sky-400 mt-1">{room.members.length} members · {room.duration}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowBreakoutModal(true)}
+            className="mt-6 w-full glass py-3 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors border border-sky-400/20"
+          >
+            Create Breakout Room
+          </button>
         </div>
       </aside>
 
@@ -355,21 +378,15 @@ export default function NovaDashboard() {
         </div>
       )}
 
-      {/* Breakout Room Modal */}
-      {showBreakoutModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="glass rounded-3xl p-10 text-center max-w-md">
-            <h3 className="text-2xl font-semibold mb-4">Create Breakout Room</h3>
-            <p className="text-readable-muted mb-8">Team members can now join for discussion and planning.</p>
-            <button
-              onClick={closeBreakoutModal}
-              className="glass px-8 py-3 rounded-2xl text-sm font-medium"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+      <BreakoutRoomModal
+        isOpen={showBreakoutModal}
+        onClose={() => setShowBreakoutModal(false)}
+        onlineUsers={ONLINE_USERS}
+        onRoomCreated={(room) => {
+          setActiveBreakoutRooms(getBreakoutRooms());
+          toast.success(`Breakout room "${room.name}" created`);
+        }}
+      />
     </div>
   );
 }
