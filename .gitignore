@@ -1,22 +1,21 @@
-# ========================================
-# Repo-local files (do not push)
-# ========================================
-.gitignore
-**/.gitignore
-main.py
-**/main.py
+﻿# =============================================================================
+# Nova Workspace — Professional .gitignore
+# =============================================================================
+#
+# Project: Nova — AI-native collaborative browser workspace
+# Charter: docs/charter.md (v2.2, Phase 4 – Production Readiness)
+# Repository: https://github.com/deaduramilade/nova-workspace
+# License: Apache-2.0
+#
+# This file supports:
+# - Strong security & compliance (never commit secrets, keys, credentials)
+# - Docker-based deployments (Oracle, self-hosted, production)
+# - Full stack: Python/FastAPI/Alembic + Next.js + Neko + Ollama
+# =============================================================================
 
-# ========================================
-# Python / FastAPI backend
-# ========================================
-# IMPORTANT: Source .py files (the actual application code) must be committed.
-# We only ignore build artifacts and caches.
-# Do NOT add broad *.py rules — they break the ability to track backend source.
-
-# Only ignore the raw mako template if it appears outside of an alembic/ directory
-script.py.mako
-**/script.py.mako
-
+# -----------------------------------------------------------------------------
+# Python Backend
+# -----------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
 *.pyo
@@ -25,24 +24,16 @@ __pycache__/
 *.so
 .Python
 
-# Explicitly protect the Alembic migrations folder and its critical files.
-# These negations ensure the alembic/ directory, env.py, and migration scripts
-# are never ignored, even if someone adds broader rules later.
-!alembic/
-!**/alembic/
-!**/alembic/env.py
-!**/alembic/script.py.mako
-!**/alembic/versions/
-!**/alembic/versions/*.py
+# Packaging & build
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Virtual environments (root or nested)
-.venv/
-venv/
-ENV/
-env/
-backend/.venv/
-
-# Test / type / lint caches
+# Testing, linting & coverage
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -54,21 +45,36 @@ coverage/
 .tox/
 .nox/
 
-# Distribution / packaging
-dist/
-build/
-*.egg-info/
-.eggs/
-pip-log.txt
-pip-delete-this-directory.txt
-
 # Celery
 celerybeat-schedule
 celerybeat.pid
 
-# ========================================
-# Node.js / Next.js frontend
-# ========================================
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+backend/.venv/
+frontend/.venv/
+
+# -----------------------------------------------------------------------------
+# Alembic Migrations (Must be committed)
+# -----------------------------------------------------------------------------
+!alembic/
+!**/alembic/
+!alembic/env.py
+!alembic/script.py.mako
+!alembic/versions/
+!alembic/versions/*.py
+
+# Only ignore stray mako templates outside of any alembic/ directory.
+# (The real alembic/script.py.mako inside the migration setup must be kept.)
+script.py.mako
+**/script.py.mako
+
+# -----------------------------------------------------------------------------
+# Frontend (Next.js)
+# -----------------------------------------------------------------------------
 node_modules/
 **/node_modules/
 
@@ -79,33 +85,22 @@ out/
 .turbo/
 .vercel/
 
-# TypeScript / ESLint caches
 *.tsbuildinfo
 .eslintcache
-
-# Next.js auto-generated (recreated on build)
 frontend/next-env.d.ts
 
-# Unused Next.js boilerplate assets
-frontend/public/*.svg
+# -----------------------------------------------------------------------------
+# Docker & Deployment
+# -----------------------------------------------------------------------------
+docker-compose.override.yml
+docker-compose.*.local.yml
+volumes/
+deploy/certs/
+deploy/certs/**/*
 
-# Package manager caches
-.npm/
-.pnpm-store/
-.yarn/cache/
-.yarn/unplugged/
-.yarn/build-state.yml
-.yarn/install-state.gz
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# ========================================
-# Environment & secrets (never commit)
-# ========================================
+# -----------------------------------------------------------------------------
+# Secrets & Security (Critical)
+# -----------------------------------------------------------------------------
 .env
 .env.local
 .env.*.local
@@ -115,34 +110,31 @@ frontend/.env.local
 .env.example
 **/.env.example
 
-# Keys & certs
 *.pem
 *.key
+*.crt
 id_rsa
 id_ed25519
 id_ed25519.pub
+*.p12
+*.pfx
 
-# ========================================
-# Docker runtime data
-# ========================================
-volumes/
+*secret*
+*password*
+*token*
 
-# Local compose overrides (machine-specific)
-docker-compose.override.yml
-docker-compose.*.local.yml
-
-# ========================================
-# Databases & local storage
-# ========================================
+# -----------------------------------------------------------------------------
+# Databases & Storage
+# -----------------------------------------------------------------------------
 *.sqlite
 *.sqlite3
 *.db
 *.rdb
 *.pid
 
-# ========================================
-# IDE, editor & AI tooling
-# ========================================
+# -----------------------------------------------------------------------------
+# IDE, Editor & AI Tools
+# -----------------------------------------------------------------------------
 .vscode/
 !.vscode/extensions.json
 !.vscode/settings.json.example
@@ -150,21 +142,30 @@ docker-compose.*.local.yml
 *.swp
 *.swo
 *~
+
 .project
 .classpath
 .settings/
 *.sublime-project
 *.sublime-workspace
 
-# AI assistant scratch files
+# AI assistant files
 CLAUDE.md
 AGENTS.md
 .cursor/
 .grok/
+.grok/**
 
-# ========================================
-# OS junk
-# ========================================
+# -----------------------------------------------------------------------------
+# Logs & OS Files
+# -----------------------------------------------------------------------------
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
 .DS_Store
 .DS_Store?
 ._*
@@ -174,22 +175,32 @@ ehthumbs.db
 Thumbs.db
 Desktop.ini
 
-# ========================================
-# Logs & debug output
-# ========================================
-*.log
-logs/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# ========================================
-# Misc build artifacts
-# ========================================
+# -----------------------------------------------------------------------------
+# Misc
+# -----------------------------------------------------------------------------
 *.bak
 *.tmp
 *.temp
 .cache/
 **/.cache/
+
+# =============================================================================
+# Force-include critical Alembic files (placed at end so they win over any prior rules)
+# =============================================================================
+# Alembic is essential for database migrations.
+# - Backend/alembic.ini configures Alembic
+# - Backend/alembic/env.py is customized to load our FastAPI models + settings
+# - Backend/alembic/versions/*.py contain the migration history
+# In production these are required (see docker-entrypoint.sh + RUN_DB_MIGRATIONS)
+!alembic/
+!**/alembic/
+!alembic.ini
+!**/alembic.ini
+!Backend/alembic/
+!Backend/alembic.ini
+!**/alembic/env.py
+!**/alembic/script.py.mako
+!**/alembic/versions/
+!**/alembic/versions/*.py
+!**/alembic/README
+!Backend/alembic/README
