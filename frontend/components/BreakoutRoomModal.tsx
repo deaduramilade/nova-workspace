@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface OnlineUser {
   name: string;
@@ -8,11 +9,20 @@ interface OnlineUser {
   location: string;
 }
 
+export interface BreakoutRoom {
+  id: string;
+  name: string;
+  topic: string;
+  duration: string;
+  members: string[];
+  createdAt: string;
+}
+
 interface BreakoutRoomModalProps {
   isOpen: boolean;
   onClose: () => void;
   onlineUsers: OnlineUser[];
-  onRoomCreated?: (room: { id: string; name: string; members: string[] }) => void;
+  onRoomCreated?: (room: BreakoutRoom) => void;
 }
 
 const DURATIONS = ['15 min', '30 min', '45 min', '60 min'];
@@ -27,11 +37,12 @@ export default function BreakoutRoomModal({
   onlineUsers,
   onRoomCreated,
 }: BreakoutRoomModalProps) {
+  const router = useRouter();
   const [roomName, setRoomName] = useState('');
   const [topic, setTopic] = useState('');
   const [duration, setDuration] = useState('30 min');
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
-  const [createdRoom, setCreatedRoom] = useState<{ id: string; name: string; members: string[] } | null>(null);
+  const [createdRoom, setCreatedRoom] = useState<BreakoutRoom | null>(null);
   const [copied, setCopied] = useState(false);
 
   const toggleMember = (name: string) => {
@@ -42,10 +53,13 @@ export default function BreakoutRoomModal({
 
   const handleCreate = () => {
     if (!roomName.trim()) return;
-    const room = {
+    const room: BreakoutRoom = {
       id: generateRoomId(),
       name: roomName.trim(),
+      topic: topic.trim() || 'Team discussion',
+      duration,
       members: selectedMembers.length > 0 ? selectedMembers : onlineUsers.map((u) => u.name),
+      createdAt: new Date().toISOString(),
     };
     setCreatedRoom(room);
     onRoomCreated?.(room);
@@ -68,6 +82,12 @@ export default function BreakoutRoomModal({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  };
+
+  const joinRoom = () => {
+    if (!createdRoom) return;
+    router.push(`/workspace/breakout-${createdRoom.id}`);
+    handleClose();
   };
 
   if (!isOpen) return null;
@@ -210,8 +230,12 @@ export default function BreakoutRoomModal({
                 <span className="font-mono text-sky-300">{createdRoom.id}</span>
               </div>
               <div className="flex justify-between text-sm">
+                <span className="text-readable-subtle">Topic</span>
+                <span className="truncate ml-4">{createdRoom.topic}</span>
+              </div>
+              <div className="flex justify-between text-sm">
                 <span className="text-readable-subtle">Duration</span>
-                <span>{duration}</span>
+                <span>{createdRoom.duration}</span>
               </div>
               <div className="text-sm">
                 <span className="text-readable-subtle">Members: </span>
@@ -219,19 +243,27 @@ export default function BreakoutRoomModal({
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3">
               <button
-                onClick={copyLink}
-                className="flex-1 py-2.5 glass rounded-xl text-sm font-medium hover:bg-white/5"
+                onClick={joinRoom}
+                className="w-full py-2.5 btn-primary rounded-xl text-sm font-semibold text-white"
               >
-                {copied ? 'Copied!' : 'Copy Invite Link'}
+                Join Room Now
               </button>
-              <button
-                onClick={handleClose}
-                className="flex-1 py-2.5 btn-primary rounded-xl text-sm font-semibold text-white"
-              >
-                Done
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={copyLink}
+                  className="flex-1 py-2.5 glass rounded-xl text-sm font-medium hover:bg-white/5"
+                >
+                  {copied ? 'Copied!' : 'Copy Invite Link'}
+                </button>
+                <button
+                  onClick={handleClose}
+                  className="flex-1 py-2.5 glass rounded-xl text-sm font-medium hover:bg-white/5"
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         )}
