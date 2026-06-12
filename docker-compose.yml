@@ -38,7 +38,7 @@ services:
       NEKO_PASSWORD: nova
       NEKO_ADMIN_PASSWORD: admin
     ports:
-      - "5210:5210"
+      - "5210:8080"
     restart: unless-stopped
     deploy:
       resources:

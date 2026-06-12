@@ -5,13 +5,26 @@ import { useParams, useRouter } from 'next/navigation';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import ChatPanel from '../../../components/ChatPanel';
+import NekoStatusPanel from '../../../components/NekoStatusPanel';
 import PresenceUserRow from '../../../components/PresenceUserRow';
+import WorkingHoursPanel from '../../../components/WorkingHoursPanel';
+import WorkspaceLiveStatus from '../../../components/WorkspaceLiveStatus';
 import { useChat } from '../../../contexts/ChatContext';
 import { usePresence } from '../../../contexts/RealtimeContext';
-import { StreamingSession, WORKSPACE_FEATURES } from '../../../lib/workspaceTypes';
+import { tickLocalHours } from '../../../lib/workingHours';
+import {
+  LiveStatusPayload,
+  NekoHealth,
+  StreamingSession,
+  TeamHoursMember,
+  WorkingHoursStatus,
+} from '../../../lib/workspaceTypes';
 import { presenceDotClass } from '../../../lib/presenceUtils';
 
-type SidebarTab = 'people' | 'chat' | 'info';
+type SidebarTab = 'live' | 'hours' | 'neko' | 'people' | 'chat';
+
+const API = 'http://localhost:8000/api/v1/streaming';
+const POLL_INTERVAL_MS = 5000;
 
 function formatElapsed(seconds: number) {
   const h = Math.floor(seconds / 3600);
@@ -29,24 +42,32 @@ export default function WorkspacePage() {
   const streamContainerRef = useRef<HTMLDivElement>(null);
 
   const [session, setSession] = useState<StreamingSession | null>(null);
+  const [nekoHealth, setNekoHealth] = useState<NekoHealth | null>(null);
+  const [liveStatus, setLiveStatus] = useState<LiveStatusPayload | null>(null);
+  const [myHours, setMyHours] = useState<WorkingHoursStatus | null>(null);
+  const [teamHours, setTeamHours] = useState<TeamHoursMember[]>([]);
+  const [teamTotal, setTeamTotal] = useState(0);
+  const [localToday, setLocalToday] = useState(0);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [streamReady, setStreamReady] = useState(false);
   const [streamError, setStreamError] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('people');
-  const [elapsed, setElapsed] = useState(0);
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('live');
+  const [sessionSeconds, setSessionSeconds] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const { setRoomId, openChat } = useChat();
   const { onlineUsers, connected: presenceConnected, myPresence } = usePresence();
 
+  const authHeaders = useCallback(() => ({
+    Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+  }), []);
+
   const loadSession = useCallback(async () => {
     const token = localStorage.getItem('access_token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
+    if (!token) { router.push('/login'); return; }
 
     setLoading(true);
     setError('');
@@ -54,33 +75,59 @@ export default function WorkspacePage() {
     setStreamReady(false);
 
     try {
-      const response = await axios.get(
-        `http://localhost:8000/api/v1/streaming/join/${workspaceId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await axios.get(`${API}/join/${workspaceId}`, { headers: authHeaders() });
       setSession(response.data);
+      setNekoHealth(response.data.neko ?? null);
+      setMyHours(response.data.working_hours ?? null);
       setRoomId(`workspace-${workspaceId}`);
     } catch {
-      setError('Failed to connect to streaming session. Check that the backend and Neko are running.');
+      setError('Failed to connect to streaming session. Check backend and Neko Docker container.');
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, router, setRoomId]);
+  }, [workspaceId, router, setRoomId, authHeaders]);
+
+  const pollLiveData = useCallback(async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    try {
+      const [liveRes, hoursRes, nekoRes] = await Promise.all([
+        axios.get(`${API}/live-status/${workspaceId}`, { headers: authHeaders() }),
+        axios.get(`${API}/working-hours/${workspaceId}`, { headers: authHeaders() }),
+        axios.get(`${API}/neko/health`, { params: { workspace_id: workspaceId }, headers: authHeaders() }),
+      ]);
+      setLiveStatus(liveRes.data);
+      setMyHours(hoursRes.data.mine);
+      setTeamHours(hoursRes.data.team);
+      setTeamTotal(hoursRes.data.team_total_today_seconds);
+      setSessionSeconds(hoursRes.data.mine?.session_seconds ?? 0);
+      setNekoHealth(nekoRes.data);
+      await axios.post(`${API}/working-hours/${workspaceId}/tick`, null, { headers: authHeaders() });
+      setLocalToday(tickLocalHours(POLL_INTERVAL_MS / 1000));
+    } catch { /* silent poll */ }
+  }, [workspaceId, authHeaders]);
+
+  useEffect(() => { loadSession(); }, [loadSession]);
 
   useEffect(() => {
-    loadSession();
-  }, [loadSession]);
-
-  useEffect(() => {
-    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
+    if (!myHours?.active || !myHours.started_at) return;
+    const started = new Date(myHours.started_at).getTime();
+    const tick = () => setSessionSeconds(Math.floor((Date.now() - started) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [myHours?.active, myHours?.started_at]);
+
+  useEffect(() => {
+    if (!session) return;
+    pollLiveData();
+    const id = setInterval(pollLiveData, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [session, pollLiveData]);
 
   useEffect(() => {
     if (!session?.stream_url) return;
-    const timeout = setTimeout(() => {
-      if (!streamReady) setStreamError(true);
-    }, 12000);
+    const timeout = setTimeout(() => { if (!streamReady) setStreamError(true); }, 12000);
     return () => clearTimeout(timeout);
   }, [session?.stream_url, streamReady]);
 
@@ -90,14 +137,22 @@ export default function WorkspacePage() {
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        axios.post(`${API}/working-hours/${workspaceId}/end`, null, {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {});
+      }
+    };
+  }, [workspaceId]);
+
   const handleFullscreen = async () => {
     const el = streamContainerRef.current;
     if (!el) return;
-    if (!document.fullscreenElement) {
-      await el.requestFullscreen();
-    } else {
-      await document.exitFullscreen();
-    }
+    if (!document.fullscreenElement) await el.requestFullscreen();
+    else await document.exitFullscreen();
   };
 
   const handleRefresh = () => {
@@ -105,7 +160,7 @@ export default function WorkspacePage() {
       setStreamReady(false);
       setStreamError(false);
       iframeRef.current.src = session.stream_url;
-      toast.success('Stream refreshed');
+      toast.success('Neko stream refreshed');
     }
   };
 
@@ -118,11 +173,11 @@ export default function WorkspacePage() {
       <div className="min-h-screen text-readable flex flex-col items-center justify-center gap-6 p-8">
         <div className="nova-spinner" />
         <div className="text-center">
-          <p className="text-lg font-semibold mb-2">Connecting to workspace stream</p>
-          <p className="text-readable-muted text-sm">Authenticating · Resolving Neko session · Preparing browser</p>
+          <p className="text-lg font-semibold mb-2">Connecting to Neko workspace</p>
+          <p className="text-readable-muted text-sm">Auth · Neko health · Session · Working hours</p>
         </div>
         <div className="workspace-connect-steps">
-          {['Auth', 'Session', 'Stream'].map((step, i) => (
+          {['Auth', 'Neko', 'Stream', 'Hours'].map((step, i) => (
             <div key={step} className="workspace-connect-step" style={{ animationDelay: `${i * 0.4}s` }}>
               <span className="workspace-connect-dot" />
               {step}
@@ -135,108 +190,83 @@ export default function WorkspacePage() {
 
   if (error || !session) {
     return (
-      <div className="min-h-screen text-readable">
-        <div className="pt-24 flex items-center justify-center p-8">
-          <div className="glass rounded-2xl p-10 max-w-lg text-center card-accent card-accent-sky">
-            <span className="text-4xl mb-4 block">⚠</span>
-            <h2 className="text-xl font-semibold mb-2">Stream unavailable</h2>
-            <p className="text-readable-muted text-sm mb-6">{error || 'Could not load workspace session.'}</p>
-            <div className="flex flex-wrap gap-3 justify-center">
-              <button onClick={loadSession} className="btn-primary px-6 py-2.5 rounded-xl text-sm font-medium text-white">
-                Retry connection
-              </button>
-              <button onClick={() => router.push('/')} className="glass px-6 py-2.5 rounded-xl text-sm font-medium">
-                Back to Dashboard
-              </button>
-            </div>
-            <p className="text-[11px] text-readable-subtle mt-6">
-              Ensure Docker Neko is running: <code className="text-sky-300">docker unpause nova-neko</code>
-            </p>
+      <div className="min-h-screen text-readable flex items-center justify-center p-8">
+        <div className="glass rounded-2xl p-10 max-w-lg text-center card-accent card-accent-sky">
+          <span className="text-4xl mb-4 block">🦊</span>
+          <h2 className="text-xl font-semibold mb-2">Neko stream unavailable</h2>
+          <p className="text-readable-muted text-sm mb-6">{error}</p>
+          <div className="flex flex-wrap gap-3 justify-center">
+            <button onClick={loadSession} className="btn-primary px-6 py-2.5 rounded-xl text-sm text-white">Retry</button>
+            <button onClick={() => router.push('/')} className="glass px-6 py-2.5 rounded-xl text-sm">Dashboard</button>
           </div>
+          <p className="text-[11px] text-readable-subtle mt-6">
+            <code className="text-sky-300">docker unpause nova-neko</code>
+          </p>
         </div>
       </div>
     );
   }
 
   const participants = onlineUsers.length > 0 ? onlineUsers : session.participants;
+  const nekoOnline = nekoHealth?.online ?? false;
 
   return (
     <div className="workspace-stream-page min-h-screen text-readable flex flex-col">
       <Toaster position="top-center" />
 
-      {/* Toolbar */}
       <header className="workspace-stream-toolbar glass border-b border-white/10 shrink-0 z-40">
         <div className="flex items-center gap-3 min-w-0">
-          <button
-            onClick={() => router.push('/')}
-            className="glass w-9 h-9 rounded-xl flex items-center justify-center text-sm hover:bg-white/5 shrink-0"
-            title="Back to dashboard"
-          >
-            ←
-          </button>
-          <div className="w-9 h-9 bg-gradient-to-br from-sky-400 to-indigo-500 rounded-xl flex items-center justify-center text-sm font-bold shrink-0">
-            N
+          <button onClick={() => router.push('/')} className="workspace-tool-btn" title="Dashboard">←</button>
+          <div className="w-9 h-9 bg-gradient-to-br from-orange-400 to-rose-500 rounded-xl flex items-center justify-center text-sm shrink-0">
+            🦊
           </div>
           <div className="min-w-0">
             <h1 className="text-sm font-semibold truncate">{session.workspace_name}</h1>
             <p className="text-[10px] text-readable-subtle flex items-center gap-2 flex-wrap">
-              <span className={`flex items-center gap-1 ${streamReady ? 'text-emerald-400' : 'text-amber-400'}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${streamReady ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-                {streamReady ? 'Stream live' : streamError ? 'Stream delayed' : 'Connecting...'}
+              <span className={`flex items-center gap-1 ${nekoOnline && streamReady ? 'text-emerald-400' : 'text-amber-400'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${nekoOnline && streamReady ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                {nekoOnline ? (streamReady ? 'Neko live' : 'Neko connecting') : 'Neko offline'}
               </span>
               <span>·</span>
-              <span>{formatElapsed(elapsed)}</span>
+              <span>{formatElapsed(sessionSeconds)}</span>
               <span>·</span>
-              <span>{session.participant_count + (onlineUsers.length || 0)} viewing</span>
+              <span>{liveStatus?.summary.in_neko_stream ?? 0} in stream</span>
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span className="hidden sm:inline-flex badge-active text-[10px] px-2.5 py-1 rounded-full capitalize">
-            {session.quality}
-          </span>
+          {nekoHealth?.latency_ms != null && (
+            <span className="hidden sm:inline text-[10px] stat-pill px-2 py-1">{nekoHealth.latency_ms}ms</span>
+          )}
           {myPresence && (
             <span className="hidden md:inline-flex items-center gap-1.5 text-[10px] stat-pill px-2.5 py-1">
               <span className={`w-1.5 h-1.5 rounded-full ${presenceDotClass(myPresence.status, myPresence.is_online)}`} />
-              You: {myPresence.status_message || myPresence.status}
+              {myPresence.status_message || myPresence.status}
             </span>
           )}
-          <button onClick={handleRefresh} className="workspace-tool-btn" title="Refresh stream">↻</button>
-          <button onClick={handlePopOut} className="workspace-tool-btn hidden sm:flex" title="Open in new tab">↗</button>
-          <button onClick={handleFullscreen} className="workspace-tool-btn" title="Fullscreen">
-            {isFullscreen ? '⊡' : '⛶'}
-          </button>
-          <button
-            onClick={() => setSidebarOpen((o) => !o)}
-            className="workspace-tool-btn"
-            title={sidebarOpen ? 'Hide panel' : 'Show panel'}
-          >
-            {sidebarOpen ? '⟩' : '⟨'}
-          </button>
+          <button onClick={handleRefresh} className="workspace-tool-btn" title="Refresh">↻</button>
+          <button onClick={handlePopOut} className="workspace-tool-btn hidden sm:flex" title="Open Neko">↗</button>
+          <button onClick={handleFullscreen} className="workspace-tool-btn">{isFullscreen ? '⊡' : '⛶'}</button>
+          <button onClick={() => setSidebarOpen((o) => !o)} className="workspace-tool-btn">{sidebarOpen ? '⟩' : '⟨'}</button>
         </div>
       </header>
 
       <div className="workspace-stream-body flex flex-1 min-h-0">
-        {/* Stream viewport */}
-        <div
-          ref={streamContainerRef}
-          className={`workspace-stream-viewport flex-1 relative min-w-0 ${isFullscreen ? 'bg-black' : ''}`}
-        >
+        <div ref={streamContainerRef} className={`workspace-stream-viewport flex-1 relative min-w-0 ${isFullscreen ? 'bg-black' : ''}`}>
           {!streamReady && !streamError && (
             <div className="workspace-stream-overlay">
               <div className="nova-spinner mb-4" />
-              <p className="text-sm font-medium">Loading browser stream...</p>
-              <p className="text-xs text-readable-subtle mt-1">Neko Firefox · Workspace {workspaceId}</p>
+              <p className="text-sm font-medium">Connecting to Neko Firefox...</p>
+              <p className="text-xs text-readable-subtle mt-1">WebRTC stream · Workspace {workspaceId}</p>
             </div>
           )}
-
           {streamError && (
             <div className="workspace-stream-overlay">
-              <span className="text-4xl mb-3">🖥</span>
-              <p className="text-sm font-medium mb-1">Stream taking longer than expected</p>
+              <span className="text-4xl mb-3">🦊</span>
+              <p className="text-sm font-medium mb-1">Neko stream delayed</p>
               <p className="text-xs text-readable-subtle mb-4 text-center max-w-sm">
-                Neko may still be starting. You can wait, refresh, or open the stream directly.
+                Container may be paused. Unpause Neko or open the stream directly.
               </p>
               <div className="flex gap-2">
                 <button onClick={handleRefresh} className="btn-primary px-4 py-2 rounded-xl text-xs text-white">Refresh</button>
@@ -244,7 +274,6 @@ export default function WorkspacePage() {
               </div>
             </div>
           )}
-
           <iframe
             ref={iframeRef}
             src={session.stream_url}
@@ -255,25 +284,21 @@ export default function WorkspacePage() {
           />
         </div>
 
-        {/* Sidebar */}
         {sidebarOpen && (
           <aside className="workspace-stream-sidebar glass-dark border-l border-white/10 flex flex-col shrink-0">
-            <div className="flex border-b border-white/10">
+            <div className="flex border-b border-white/10 overflow-x-auto">
               {([
-                ['people', `People (${participants.length})`],
+                ['live', 'Live'],
+                ['hours', 'Hours'],
+                ['neko', 'Neko'],
+                ['people', 'Team'],
                 ['chat', 'Chat'],
-                ['info', 'Session'],
               ] as const).map(([tab, label]) => (
                 <button
                   key={tab}
-                  onClick={() => {
-                    setSidebarTab(tab);
-                    if (tab === 'chat') openChat();
-                  }}
-                  className={`flex-1 py-3 text-[11px] font-medium transition-colors ${
-                    sidebarTab === tab
-                      ? 'text-sky-300 border-b-2 border-sky-400'
-                      : 'text-readable-subtle hover:text-readable'
+                  onClick={() => { setSidebarTab(tab); if (tab === 'chat') openChat(); }}
+                  className={`flex-1 min-w-[52px] py-3 text-[10px] font-medium whitespace-nowrap ${
+                    sidebarTab === tab ? 'text-sky-300 border-b-2 border-sky-400' : 'text-readable-subtle'
                   }`}
                 >
                   {label}
@@ -282,68 +307,39 @@ export default function WorkspacePage() {
             </div>
 
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+              {sidebarTab === 'live' && <WorkspaceLiveStatus live={liveStatus} />}
+              {sidebarTab === 'hours' && (
+                <WorkingHoursPanel
+                  mine={myHours}
+                  team={teamHours}
+                  teamTotal={teamTotal}
+                  sessionElapsed={sessionSeconds}
+                  localToday={localToday}
+                />
+              )}
+              {sidebarTab === 'neko' && (
+                <NekoStatusPanel
+                  neko={nekoHealth}
+                  streamReady={streamReady}
+                  onRefresh={handleRefresh}
+                  onOpenNeko={handlePopOut}
+                />
+              )}
               {sidebarTab === 'people' && (
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                  <p className="text-[10px] text-readable-subtle uppercase tracking-wide px-1 mb-2">
-                    {presenceConnected ? 'Live presence' : 'Team members'}
+                  <p className="text-[10px] text-readable-subtle uppercase tracking-wide px-1">
+                    {presenceConnected ? 'Live presence' : 'Team'}
                   </p>
                   {participants.length === 0 ? (
-                    <p className="text-xs text-readable-subtle text-center py-6">No one else online yet</p>
+                    <p className="text-xs text-readable-subtle text-center py-6">No one else online</p>
                   ) : (
-                    participants.map((u) => (
-                      <PresenceUserRow key={u.username} user={u} compact />
-                    ))
+                    participants.map((u) => <PresenceUserRow key={u.username} user={u} compact />)
                   )}
-                  <button
-                    onClick={() => router.push('/presence')}
-                    className="w-full mt-4 glass py-2.5 rounded-xl text-xs font-medium hover:bg-white/5"
-                  >
-                    View full presence hub
-                  </button>
                 </div>
               )}
-
               {sidebarTab === 'chat' && (
                 <div className="flex-1 min-h-0 chat-embedded-wrapper">
                   <ChatPanel embedded />
-                </div>
-              )}
-
-              {sidebarTab === 'info' && (
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  <div>
-                    <p className="text-[10px] text-readable-subtle uppercase tracking-wide mb-2">Session</p>
-                    <div className="glass rounded-xl p-3 space-y-2 text-xs">
-                      <div className="flex justify-between"><span className="text-readable-subtle">ID</span><span className="font-mono text-[10px]">{session.session_id}</span></div>
-                      <div className="flex justify-between"><span className="text-readable-subtle">Host</span><span>{session.host}</span></div>
-                      <div className="flex justify-between"><span className="text-readable-subtle">Status</span><span className="capitalize badge-active px-2 py-0.5 rounded-full text-[10px]">{session.workspace_status}</span></div>
-                      <div className="flex justify-between"><span className="text-readable-subtle">Quality</span><span className="capitalize">{session.quality}</span></div>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-readable-subtle uppercase tracking-wide mb-2">Features</p>
-                    <div className="flex flex-wrap gap-2">
-                      {session.features.map((f) => {
-                        const meta = WORKSPACE_FEATURES[f];
-                        return (
-                          <span key={f} className="stat-pill px-2.5 py-1.5 rounded-lg text-[10px]">
-                            {meta?.icon} {meta?.label ?? f}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-readable-subtle uppercase tracking-wide mb-2">Quick actions</p>
-                    <div className="space-y-2">
-                      <button onClick={() => router.push('/calls')} className="w-full glass py-2.5 rounded-xl text-xs font-medium hover:bg-white/5">
-                        Start a call
-                      </button>
-                      <button onClick={() => router.push('/team-game')} className="w-full glass py-2.5 rounded-xl text-xs font-medium hover:bg-white/5">
-                        Team break game
-                      </button>
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
