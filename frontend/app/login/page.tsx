@@ -1,102 +1,98 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import toast, { Toaster } from 'react-hot-toast';
+import axios from 'axios';
 
-export default function NovaDashboard() {
+export default function LoginPage() {
   const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [formData, setFormData] = useState({ username: '', password: '' });
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      router.push('/login');
-    } else {
-      setIsAuthenticated(true);
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const response = await axios.post('http://localhost:8000/api/v1/auth/login', null, {
+        params: formData,
+      });
+      localStorage.setItem('access_token', response.data.access_token);
+      toast.success('Welcome back!');
+      setTimeout(() => router.push('/'), 800);
+    } catch (error: unknown) {
+      const detail = axios.isAxiosError(error)
+        ? error.response?.data?.detail
+        : undefined;
+      toast.error(detail || 'Login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
-  }, [router]);
-
-  if (!isAuthenticated) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 text-white">
-      {/* Navigation */}
-      <nav className="glass fixed top-0 left-0 right-0 z-50 border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-8 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-9 h-9 bg-gradient-to-br from-sky-400 to-indigo-500 rounded-2xl flex items-center justify-center text-xl font-bold">
-              N
-            </div>
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Nova Workspace</h1>
-              <p className="text-xs text-white/60 -mt-1">AI-Native Collaborative Platform</p>
-            </div>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 flex items-center justify-center p-6">
+      <Toaster position="top-center" />
 
-          <div className="flex items-center gap-6">
-            <button className="glass px-6 py-3 rounded-2xl text-sm font-medium hover:bg-white/10 transition-all">
-              New Workspace
-            </button>
-            
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="text-sm font-medium">Samuel Okunribido</div>
-                <div className="text-xs text-white/60">@oceanfi</div>
-              </div>
-              <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-purple-500 rounded-full flex items-center justify-center font-semibold text-lg">
-                SO
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <main className="pt-24 pb-12 px-8 max-w-7xl mx-auto">
-        <div className="mb-12">
-          <h2 className="text-4xl font-bold tracking-tight mb-3">
-            Welcome back, Samuel
-          </h2>
-          <p className="text-xl text-white/70">
-            Continue your AI-human collaboration sessions
-          </p>
-        </div>
-
-        {/* Workspaces */}
-        <div className="mb-12">
-          <h3 className="text-lg font-semibold mb-6 text-white/90">Your Workspaces</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="glass-card rounded-3xl p-8 cursor-pointer hover:shadow-2xl">
-                <div className="flex justify-between items-start mb-6">
-                  <h4 className="text-xl font-semibold">AI Agent Collaboration {i}</h4>
-                  <span className="px-4 py-1 bg-emerald-500/20 text-emerald-400 text-xs rounded-full font-medium">Active</span>
-                </div>
-                <div className="space-y-3 text-sm text-white/70">
-                  <div>4 Humans • 7 AI Agents</div>
-                  <div>Last synced moments ago</div>
-                </div>
-              </div>
-            ))}
+      <div className="glass w-full max-w-md rounded-3xl p-10">
+        <div className="flex justify-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-sky-400 to-indigo-500 rounded-2xl flex items-center justify-center">
+            <span className="text-white text-4xl font-bold">N</span>
           </div>
         </div>
 
-        <div>
-          <h3 className="text-lg font-semibold mb-6 text-white/90">Quick Actions</h3>
-          <div className="flex flex-wrap gap-4">
-            <button className="glass px-8 py-4 rounded-3xl hover:scale-[1.02] transition-all text-base font-medium">
-              Start New Session
-            </button>
-            <button className="glass px-8 py-4 rounded-3xl hover:scale-[1.02] transition-all text-base font-medium">
-              Invite AI Agent
-            </button>
-            <button className="glass px-8 py-4 rounded-3xl hover:scale-[1.02] transition-all text-base font-medium">
-              Join Session
-            </button>
+        <h1 className="text-3xl font-semibold text-center mb-2 text-white">Sign in</h1>
+        <p className="text-white/60 text-center mb-10">Access your Nova collaborative workspace</p>
+
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div>
+            <label className="block text-sm mb-2 text-white/80">Username</label>
+            <input
+              type="text"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              className="w-full px-5 py-4 rounded-2xl bg-white/10 border border-white/20 focus:outline-none focus:border-sky-400 text-white placeholder:text-white/50"
+              placeholder="your_username"
+              required
+            />
           </div>
-        </div>
-      </main>
+
+          <div>
+            <label className="block text-sm mb-2 text-white/80">Password</label>
+            <input
+              type="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              className="w-full px-5 py-4 rounded-2xl bg-white/10 border border-white/20 focus:outline-none focus:border-sky-400 text-white placeholder:text-white/50"
+              placeholder="Enter your password"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full py-4 bg-gradient-to-r from-sky-500 to-indigo-600 rounded-2xl font-semibold text-base hover:brightness-110 transition-all disabled:opacity-70 text-white"
+          >
+            {isLoading ? 'Signing in...' : 'Sign in'}
+          </button>
+        </form>
+
+        <p className="text-center mt-8 text-white/60">
+          Don&apos;t have an account?{' '}
+          <Link href="/register" className="text-sky-400 hover:underline">
+            Create one
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

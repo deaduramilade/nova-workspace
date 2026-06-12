@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Nova Workspace",
@@ -17,8 +20,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.className} bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 min-h-screen`}>
-        {children}
+      <body className={`${inter.className} nova-bg`}>
+        <div className="nova-content">{children}</div>
       </body>
     </html>
   );

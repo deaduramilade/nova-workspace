@@ -1,118 +1,286 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import axios from 'axios';
+
+interface Workspace {
+  id: number;
+  name: string;
+  status: string;
+  created_at: string;
+}
+
+const PROJECT_META = [
+  { humans: 4, agents: 7, sessions: 12, accent: 'card-accent-sky' },
+  { humans: 2, agents: 5, sessions: 8, accent: 'card-accent-emerald' },
+  { humans: 6, agents: 9, sessions: 21, accent: 'card-accent-violet' },
+  { humans: 3, agents: 4, sessions: 5, accent: 'card-accent-amber' },
+];
+
+const ONLINE_USERS = [
+  { name: 'John Doe', status: 'Working', location: 'Workspace 1', hours: '6.5h', weather: '28°C Lagos' },
+  { name: 'Alice Smith', status: 'In session', location: 'Workspace 2', hours: '4.2h', weather: '27°C Cloudy' },
+  { name: 'Michael Chen', status: 'Available', location: 'Workspace 1', hours: '7.8h', weather: '29°C' },
+];
+
+function formatRelativeTime(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const normalized = status.toLowerCase();
+  const badgeClass =
+    normalized === 'active' ? 'badge-active' :
+    normalized === 'busy' ? 'badge-busy' : 'badge-idle';
+
+  return (
+    <span className={`px-3 py-1 text-xs rounded-full font-medium capitalize ${badgeClass}`}>
+      {status}
+    </span>
+  );
+}
 
 export default function NovaDashboard() {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 text-white flex">
-      {/* Main Content */}
-      <div className="flex-1">
-        {/* Navigation */}
-        <nav className="glass fixed top-0 left-0 right-0 z-50 border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-8 py-5 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-9 h-9 bg-gradient-to-br from-sky-400 to-indigo-500 rounded-2xl flex items-center justify-center text-xl font-bold">
-                N
-              </div>
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight">Nova Workspace</h1>
-                <p className="text-xs text-white/60 -mt-1">AI-Native Collaborative Platform</p>
-              </div>
-            </div>
+  const router = useRouter();
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [loading, setLoading] = useState(true);
 
-            <div className="flex items-center gap-6">
-              <button className="glass px-6 py-3 rounded-2xl text-sm font-medium hover:bg-white/10 transition-all">
-                New Workspace
-              </button>
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <div className="text-sm font-medium">Samuel Okunribido</div>
-                  <div className="text-xs text-white/60">@oceanfi</div>
-                </div>
-                <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-purple-500 rounded-full flex items-center justify-center font-semibold text-lg">
-                  SO
-                </div>
-              </div>
-            </div>
-          </div>
-        </nav>
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
 
-        <main className="pt-24 pb-12 px-8 max-w-7xl mx-auto flex-1">
-          <div className="mb-12">
-            <h2 className="text-4xl font-bold tracking-tight mb-3">
-              Welcome back, Samuel
-            </h2>
-            <p className="text-xl text-white/70">
-              Continue your AI-human collaboration sessions
-            </p>
-          </div>
+    if (!token) {
+      setLoading(false);
+      return;
+    }
 
-          {/* Supervisor Oversight */}
-          <div className="mb-12 glass rounded-3xl p-8">
-            <h3 className="text-lg font-semibold mb-6">Supervisor Oversight - Live Monitoring</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-sm">
-              <div>Active Workspaces: 3 | Total Online Users: 12</div>
-              <div>Total Hours Tracked Today: 87.5 hours</div>
-            </div>
-          </div>
+    const fetchWorkspaces = async () => {
+      try {
+        const res = await axios.get('http://localhost:8000/api/v1/workspaces/', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setWorkspaces(res.data);
+      } catch {
+        setWorkspaces([]);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-          {/* Workspaces */}
-          <div className="mb-12">
-            <h3 className="text-lg font-semibold mb-6 text-white/90">Your Workspaces</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3].map((i) => (
-                <div 
-                  key={i} 
-                  className="glass-card rounded-3xl p-8 cursor-pointer hover:shadow-2xl"
-                  onClick={() => window.location.href = `/workspace/${i}`}
-                >
-                  <div className="flex justify-between items-start mb-6">
-                    <h4 className="text-xl font-semibold">AI Agent Collaboration {i}</h4>
-                    <span className="px-4 py-1 bg-emerald-500/20 text-emerald-400 text-xs rounded-full font-medium">Active</span>
-                  </div>
-                  <div className="space-y-3 text-sm text-white/70">
-                    <div>4 Humans • 7 AI Agents</div>
-                    <div>Last synced moments ago</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </main>
+    fetchWorkspaces();
+  }, []);
+
+  const displayWorkspaces: (Workspace & { humans: number; agents: number; sessions: number; accent: string })[] =
+    workspaces.length > 0
+      ? workspaces.map((ws, i) => ({
+          ...ws,
+          ...PROJECT_META[i % PROJECT_META.length],
+        }))
+      : [1, 2, 3].map((i) => ({
+          id: i,
+          name: `AI Agent Collaboration ${i}`,
+          status: 'active',
+          created_at: new Date().toISOString(),
+          ...PROJECT_META[(i - 1) % PROJECT_META.length],
+        }));
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <div className="nova-spinner" />
+        <p className="text-readable-muted text-sm">Loading your workspaces...</p>
       </div>
+    );
+  }
 
-      {/* Online Users Sidebar - Real-time Status */}
-      <div className="w-80 border-l border-white/10 bg-black/40 backdrop-blur-xl p-6 hidden lg:block overflow-auto">
-        <h3 className="text-lg font-semibold mb-6">Online Now</h3>
-        <div className="space-y-4">
+  return (
+    <div className="min-h-screen text-readable">
+      <nav className="glass fixed top-0 left-0 right-0 z-50 border-b border-white/10 lg:right-80">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-indigo-500 rounded-2xl flex items-center justify-center text-lg font-bold shadow-lg shadow-sky-500/20">
+              N
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight">Nova Workspace</h1>
+              <p className="text-xs text-readable-subtle">AI-Native Collaborative Platform</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button className="btn-primary hidden sm:inline-flex px-5 py-2.5 rounded-xl text-sm font-medium text-white">
+              New Workspace
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <div className="text-sm font-medium">Alex Rivera</div>
+                <div className="text-xs text-readable-subtle">@arivera</div>
+              </div>
+              <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-purple-500 rounded-full flex items-center justify-center font-semibold text-sm ring-2 ring-white/10">
+                AR
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <main className="pt-20 pb-12 px-6 lg:px-8 max-w-7xl mx-auto lg:mr-80">
+        <header className="mb-10">
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-2">
+            Welcome back, Alex
+          </h2>
+          <p className="text-lg text-readable-muted leading-relaxed">
+            Pick up where you left off — your projects and sessions are ready.
+          </p>
+        </header>
+
+        {/* Overview stats */}
+        <section className="mb-10 grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { name: "John Doe", status: "Working", location: "Workspace 1", hours: "6.5h", weather: "28°C Lagos" },
-            { name: "Alice Smith", status: "Current Weather: 27°C", location: "Workspace 2", hours: "4.2h", weather: "Cloudy" },
-            { name: "Michael Chen", status: "Available", location: "Workspace 1", hours: "7.8h", weather: "29°C" }
-          ].map((user, index) => (
-            <div key={index} className="glass p-4 rounded-2xl flex items-center gap-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-purple-500 rounded-full flex items-center justify-center font-semibold text-sm">
-                {user.name.split(' ').map(n => n[0]).join('')}
+            { label: 'Active Projects', value: displayWorkspaces.length, icon: '📁' },
+            { label: 'Team Online', value: '12', icon: '👥' },
+            { label: 'AI Agents', value: '24', icon: '🤖' },
+            { label: 'Hours Today', value: '87.5', icon: '⏱' },
+          ].map((stat) => (
+            <div key={stat.label} className="glass rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-2xl">{stat.icon}</span>
+                <span className="text-2xl font-bold tracking-tight">{stat.value}</span>
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium truncate">{user.name}</div>
-                <div className="text-xs text-white/60 truncate">{user.location}</div>
-                <div className="text-xs text-white/50">Today: {user.hours}</div>
-              </div>
-              <div className="text-right text-xs">
-                <div className="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full mb-1">
-                  {user.status}
-                </div>
-                <div className="text-white/50">{user.weather}</div>
-              </div>
+              <p className="text-sm text-readable-muted">{stat.label}</p>
             </div>
           ))}
-        </div>
+        </section>
 
-        <button className="mt-8 w-full glass py-3 rounded-2xl text-sm font-medium hover:bg-white/10 transition-all">
-          Create Breakout Room
-        </button>
-      </div>
+        {/* Supervisor panel */}
+        <section className="mb-10 glass rounded-2xl p-6 sm:p-8">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <h3 className="text-base font-semibold">Supervisor Oversight</h3>
+            <span className="text-xs text-readable-subtle ml-auto">Live monitoring</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+            <div className="stat-pill rounded-xl px-4 py-3">
+              <p className="text-readable-subtle text-xs mb-1">Active Workspaces</p>
+              <p className="font-semibold text-lg">{displayWorkspaces.length}</p>
+            </div>
+            <div className="stat-pill rounded-xl px-4 py-3">
+              <p className="text-readable-subtle text-xs mb-1">Online Users</p>
+              <p className="font-semibold text-lg">12</p>
+            </div>
+            <div className="stat-pill rounded-xl px-4 py-3">
+              <p className="text-readable-subtle text-xs mb-1">Hours Tracked Today</p>
+              <p className="font-semibold text-lg">87.5 hrs</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Project cards */}
+        <section className="mb-10">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold">Your Projects</h3>
+            <span className="text-sm text-readable-subtle">{displayWorkspaces.length} workspaces</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {displayWorkspaces.map((project) => (
+              <article
+                key={project.id}
+                className={`glass-card card-accent ${project.accent} rounded-2xl p-6 cursor-pointer group`}
+                onClick={() => router.push(`/workspace/${project.id}`)}
+              >
+                <div className="flex justify-between items-start gap-3 mb-5">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-sky-500/20 to-indigo-500/20 border border-white/10 flex items-center justify-center text-lg shrink-0 group-hover:from-sky-500/30 group-hover:to-indigo-500/30 transition-colors">
+                      {project.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-base font-semibold leading-snug truncate">{project.name}</h4>
+                      <p className="text-xs text-readable-subtle mt-0.5">
+                        Updated {formatRelativeTime(project.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                  <StatusBadge status={project.status} />
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 mb-5">
+                  <div className="stat-pill rounded-lg px-3 py-2.5 text-center">
+                    <p className="text-lg font-semibold leading-none">{project.humans}</p>
+                    <p className="text-[11px] text-readable-subtle mt-1">Humans</p>
+                  </div>
+                  <div className="stat-pill rounded-lg px-3 py-2.5 text-center">
+                    <p className="text-lg font-semibold leading-none">{project.agents}</p>
+                    <p className="text-[11px] text-readable-subtle mt-1">AI Agents</p>
+                  </div>
+                  <div className="stat-pill rounded-lg px-3 py-2.5 text-center">
+                    <p className="text-lg font-semibold leading-none">{project.sessions}</p>
+                    <p className="text-[11px] text-readable-subtle mt-1">Sessions</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-readable-muted">Open workspace</span>
+                  <span className="text-sky-400 group-hover:translate-x-1 transition-transform">→</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {/* Quick actions */}
+        <section>
+          <h3 className="text-lg font-semibold mb-5">Quick Actions</h3>
+          <div className="flex flex-wrap gap-3">
+            {['Start New Session', 'Invite AI Agent', 'Join Session'].map((action) => (
+              <button
+                key={action}
+                className="glass px-6 py-3 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors"
+              >
+                {action}
+              </button>
+            ))}
+          </div>
+        </section>
+      </main>
+
+      {/* Online users sidebar */}
+      <aside className="w-80 border-l border-white/10 glass-dark fixed right-0 top-0 bottom-0 overflow-auto hidden lg:block z-40">
+        <div className="p-6">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="w-2 h-2 rounded-full bg-emerald-400" />
+            <h3 className="text-base font-semibold">Online Now</h3>
+            <span className="text-xs text-readable-subtle ml-auto">{ONLINE_USERS.length} users</span>
+          </div>
+
+          <div className="space-y-3">
+            {ONLINE_USERS.map((user) => (
+              <div key={user.name} className="glass rounded-xl p-4 flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-purple-500 rounded-full flex items-center justify-center font-semibold text-xs shrink-0">
+                  {user.name.split(' ').map((n) => n[0]).join('')}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{user.name}</p>
+                  <p className="text-xs text-readable-subtle truncate">{user.location}</p>
+                  <p className="text-xs text-readable-subtle">Today: {user.hours}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="inline-block px-2 py-0.5 badge-active text-[10px] rounded-full mb-1">
+                    {user.status}
+                  </span>
+                  <p className="text-[10px] text-readable-subtle">{user.weather}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }
