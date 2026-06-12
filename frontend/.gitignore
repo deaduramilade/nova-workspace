@@ -1,5 +1,18 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Local-only (do not push)
+.gitignore
+main.py
+
+# Python (if any scripts land in frontend)
+*.py
+script.py.mako
+**/script.py.mako
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
 # dependencies
 /node_modules
 /.pnp
@@ -16,6 +29,7 @@
 # next.js
 /.next/
 /out/
+.turbo/
 
 # production
 /build
@@ -30,8 +44,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files
+.env
+.env*.local
+.env.example
 
 # vercel
 .vercel

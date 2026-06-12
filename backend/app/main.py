@@ -9,7 +9,9 @@ from app.core.database import init_db
 from app.api.v1.auth import router as auth_router
 from app.api.v1.workspaces import router as workspaces_router
 from app.api.v1.sessions import router as sessions_router
-from app.api.v1.streaming import router as streaming_router   # ← New line
+from app.api.v1.streaming import router as streaming_router
+from app.api.v1.chat import router as chat_router
+from app.api.v1.calls import router as calls_router
 
 load_dotenv()
 
@@ -34,7 +36,9 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(workspaces_router, prefix="/api/v1/workspaces", tags=["workspaces"])
 app.include_router(sessions_router, prefix="/api/v1/sessions", tags=["sessions"])
-app.include_router(streaming_router, prefix="/api/v1/streaming", tags=["streaming"])  # ← New line
+app.include_router(streaming_router, prefix="/api/v1/streaming", tags=["streaming"])
+app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
+app.include_router(calls_router, prefix="/api/v1/calls", tags=["calls"])
 
 @app.get("/api/v1/health")
 async def health_check():

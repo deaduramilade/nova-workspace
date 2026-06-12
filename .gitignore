@@ -1,94 +1,181 @@
 # ========================================
-# Python & Backend
+# Repo-local files (do not push)
 # ========================================
+.gitignore
+**/.gitignore
+main.py
+**/main.py
+
+# ========================================
+# Python / FastAPI backend
+# ========================================
+*.py
+script.py.mako
+**/script.py.mako
+
 __pycache__/
 *.py[cod]
-*.pyc
 *.pyo
 *.pyd
-.pytest_cache/
-.mypy_cache/
-alembic/versions/
-alembic/README
-alembic/script.py.mako
-*.cpython-*.pyc
+*$py.class
+*.so
+.Python
 
-# Virtual Environment
+# Virtual environments (root or nested)
 .venv/
 venv/
 ENV/
 env/
+backend/.venv/
 
-# Environment variables
-.env
-.env*.local
-*.env
+# Test / type / lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+htmlcov/
+.coverage
+coverage/
+*.cover
+.tox/
+.nox/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+.eggs/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
 
 # ========================================
-# Frontend - Next.js
+# Node.js / Next.js frontend
 # ========================================
-frontend/.next/
-frontend/node_modules/
-frontend/out/
-frontend/.env*.local
+node_modules/
+**/node_modules/
+
+.next/
+**/.next/
+out/
+**/out/
+.turbo/
+.vercel/
+
+# TypeScript / ESLint caches
+*.tsbuildinfo
+.eslintcache
+
+# Next.js auto-generated (recreated on build)
 frontend/next-env.d.ts
-frontend/.eslintcache
-frontend/.cache
-frontend/tsconfig.tsbuildinfo
 
-# Next.js generated files
+# Unused Next.js boilerplate assets
 frontend/public/*.svg
-frontend/**/tsconfig.tsbuildinfo
 
-# Package files (regenerate on clone)
-frontend/package-lock.json
+# Package manager caches
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
 # ========================================
-# Docker & Volumes
+# Environment & secrets (never commit)
+# ========================================
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+frontend/.env.local
+.env.example
+**/.env.example
+
+# Keys & certs
+*.pem
+*.key
+id_rsa
+id_ed25519
+id_ed25519.pub
+
+# ========================================
+# Docker runtime data
 # ========================================
 volumes/
-.dockerignore
+
+# Local compose overrides (machine-specific)
+docker-compose.override.yml
+docker-compose.*.local.yml
 
 # ========================================
-# IDE, Editor & Tools
+# Databases & local storage
+# ========================================
+*.sqlite
+*.sqlite3
+*.db
+*.rdb
+*.pid
+
+# ========================================
+# IDE, editor & AI tooling
 # ========================================
 .vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
 .idea/
 *.swp
 *.swo
-*.sublime-*
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# AI assistant scratch files
 CLAUDE.md
 AGENTS.md
+.cursor/
+.grok/
 
 # ========================================
-# OS & Temporary
+# OS junk
 # ========================================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+Desktop.ini
+
+# ========================================
+# Logs & debug output
+# ========================================
 *.log
+logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
 # ========================================
-# Build & Misc
+# Misc build artifacts
 # ========================================
-dist/
-build/
-coverage/
-*.sqlite3
-*.db
-**/__pycache__/
-**/.cache
-**/.npm
-**/.yarn
-
-# Temporary GitHub files
-frontend/favicons/
-frontend/public/file.svg
-frontend/public/globe.svg
-frontend/public/next.svg
-frontend/public/vercel.svg
-frontend/public/window.svg
-/backend/alembic
-*.example
+*.bak
+*.tmp
+*.temp
+.cache/
+**/.cache/
