@@ -3,6 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
+import toast, { Toaster } from 'react-hot-toast';
+import BreakTimerModal from '../components/BreakTimerModal';
+import BreakoutRoomModal from '../components/BreakoutRoomModal';
 
 interface Workspace {
   id: number;
@@ -52,7 +55,6 @@ export default function NovaDashboard() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBreakTimer, setShowBreakTimer] = useState(false);
-  const [breakTimeLeft, setBreakTimeLeft] = useState(45 * 60);
   const [showBreakoutModal, setShowBreakoutModal] = useState(false);
 
   useEffect(() => {
@@ -79,31 +81,8 @@ export default function NovaDashboard() {
     fetchWorkspaces();
   }, []);
 
-  // Break Timer
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (showBreakTimer && breakTimeLeft > 0) {
-      timer = setInterval(() => {
-        setBreakTimeLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (breakTimeLeft === 0) {
-      setShowBreakTimer(false);
-      alert("Break time completed. Welcome back to work.");
-    }
-    return () => clearInterval(timer);
-  }, [showBreakTimer, breakTimeLeft]);
-
-  const startBreak = () => {
-    setBreakTimeLeft(45 * 60);
-    setShowBreakTimer(true);
-  };
-
-  const createBreakoutRoom = () => {
-    setShowBreakoutModal(true);
-  };
-
   const playLightGame = () => {
-    alert("Light Team Game (Memory Match) launched for break time.");
+    toast.success('Light Team Game (Memory Match) launched for break time.');
   };
 
   const displayWorkspaces = workspaces.length > 0
@@ -130,6 +109,7 @@ export default function NovaDashboard() {
 
   return (
     <div className="min-h-screen text-readable">
+      <Toaster position="top-center" />
       <nav className="glass fixed top-0 left-0 right-0 z-50 border-b border-white/10 lg:right-80">
         <div className="max-w-7xl mx-auto px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -272,17 +252,17 @@ export default function NovaDashboard() {
             >
               Start New Session
             </button>
-            <button 
-              onClick={createBreakoutRoom}
+            <button
+              onClick={() => setShowBreakoutModal(true)}
               className="glass px-6 py-3 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors border border-sky-400/30"
             >
               Create Breakout Room
             </button>
-            <button 
-              onClick={startBreak}
+            <button
+              onClick={() => setShowBreakTimer(true)}
               className="glass px-6 py-3 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors"
             >
-              Start Break (45 min)
+              Start Break
             </button>
             <button 
               onClick={playLightGame}
@@ -323,43 +303,28 @@ export default function NovaDashboard() {
               </div>
             ))}
           </div>
+
+          <button
+            onClick={() => setShowBreakoutModal(true)}
+            className="mt-6 w-full glass py-3 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors border border-sky-400/20"
+          >
+            Create Breakout Room
+          </button>
         </div>
       </aside>
 
-      {/* Break Timer Modal */}
-      {showBreakTimer && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="glass rounded-3xl p-12 text-center max-w-md">
-            <h3 className="text-2xl font-semibold mb-4">Break Time</h3>
-            <div className="text-6xl font-mono mb-8">
-              {Math.floor(breakTimeLeft / 60)}:{(breakTimeLeft % 60).toString().padStart(2, '0')}
-            </div>
-            <p className="text-readable-muted mb-8">Relax and recharge. Binaural audio is playing.</p>
-            <button
-              onClick={() => setShowBreakTimer(false)}
-              className="glass px-8 py-3 rounded-2xl text-sm font-medium"
-            >
-              End Break Early
-            </button>
-          </div>
-        </div>
-      )}
+      <BreakTimerModal
+        isOpen={showBreakTimer}
+        onClose={() => setShowBreakTimer(false)}
+        onComplete={() => toast.success('Break complete — welcome back!')}
+      />
 
-      {/* Breakout Room Modal */}
-      {showBreakoutModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="glass rounded-3xl p-10 text-center max-w-md">
-            <h3 className="text-2xl font-semibold mb-4">Create Breakout Room</h3>
-            <p className="text-readable-muted mb-8">Team members can now join for discussion and planning.</p>
-            <button
-              onClick={() => setShowBreakoutModal(false)}
-              className="glass px-8 py-3 rounded-2xl text-sm font-medium"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+      <BreakoutRoomModal
+        isOpen={showBreakoutModal}
+        onClose={() => setShowBreakoutModal(false)}
+        onlineUsers={ONLINE_USERS}
+        onRoomCreated={(room) => toast.success(`Breakout room "${room.name}" created`)}
+      />
     </div>
   );
 }
