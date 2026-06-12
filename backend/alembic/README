@@ -1,1 +1,37 @@
-Generic single-database configuration.
+# Nova Alembic Migrations
+
+This directory contains Alembic database migration scripts for the Nova Workspace backend.
+
+**Project**: [Nova](https://github.com/deaduramilade/nova-workspace) — AI-native collaborative browser workspace (Phase 4 – Production Readiness).
+
+**Database**: PostgreSQL (via SQLAlchemy 2.0 declarative models in `Backend/app/models/` and `app/core/database.py`).
+
+**Configuration**:
+- `alembic.ini` (at Backend root) — script location and logging
+- `env.py` — loads application settings (DATABASE_URL from `app.core.config`), ensures all models are imported for `--autogenerate`, sets `target_metadata = Base.metadata`, and includes production polish (compare_type, compare_server_default, empty-migration suppression).
+
+## Typical Usage
+
+From the `Backend/` directory (or project root with appropriate PYTHONPATH):
+
+```bash
+# Create a new migration after model changes
+alembic revision --autogenerate -m "add new field or table"
+
+# Apply migrations (also performed automatically by docker-entrypoint.sh when RUN_DB_MIGRATIONS=true)
+alembic upgrade head
+
+# Roll back one revision
+alembic downgrade -1
+
+# Show current revision
+alembic current
+```
+
+See the root [README.md](../../README.md) and [docs/charter.md](../../docs/charter.md) for the overall project direction, data retention rules (7-day ephemeral data), security model, and architecture.
+
+**Note**: This `README` augments the standard Alembic single-database setup. The original generic note has been replaced with project context for contributors and operators.
+
+---
+
+Maintained as part of Nova (Apache-2.0).
