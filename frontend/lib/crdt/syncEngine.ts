@@ -2,12 +2,9 @@ import axios from 'axios';
 import { CRDTOp, CRDTState, SyncQueueEntry, SyncStatus } from './types';
 import { loadCRDTState, loadSyncQueue, persistQueueEntry, removeQueueEntry, saveCRDTState } from './storage';
 
-const API = 'http://localhost:8000/api/v1/sync';
+import { apiUrl, authHeaders } from '../api';
 
-function authHeaders() {
-  const token = localStorage.getItem('access_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+const API = apiUrl('/sync');
 
 function nodeId(): string {
   let id = localStorage.getItem('nova_crdt_node');

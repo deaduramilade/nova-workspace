@@ -8,6 +8,7 @@ import { useRealtimeSocket } from '../hooks/useRealtimeSocket';
 import { playMessageSound } from '../lib/notificationSound';
 import { CallLogEntry, CallSession } from '../lib/callTypes';
 import { DIRECTORY_USERS, PresenceStats, PresenceUser, SettablePresenceStatus } from '../lib/presenceTypes';
+import { apiUrl, authHeaders } from '../lib/api';
 import { splitPresenceDirectory } from '../lib/presenceUtils';
 
 interface RealtimeContextValue {
@@ -105,9 +106,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     if (!token) return;
 
     axios
-      .get('http://localhost:8000/api/v1/presence/directory', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      .get(apiUrl('/presence/directory'), { headers: authHeaders() })
       .then((res) => {
         if (res.data?.users) {
           socket.setPresenceDirectory(res.data.users);

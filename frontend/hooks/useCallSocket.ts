@@ -8,7 +8,7 @@ import {
   mergePresenceSnapshot,
 } from '../lib/presenceUtils';
 
-const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
+import { WS_BASE } from '../lib/api';
 const HEARTBEAT_MS = 30_000;
 
 type CallEventHandler = (payload: Record<string, unknown>) => void;

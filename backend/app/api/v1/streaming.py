@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.user import User
 from app.models.workspace import Workspace
@@ -25,6 +26,12 @@ from app.services.workspace_live_status import get_live_status
 router = APIRouter(tags=["streaming"])
 
 
+def _neko_secrets() -> dict:
+    if settings.EXPOSE_NEKO_SECRETS:
+        return {"neko_password": NEKO_PASSWORD, "neko_admin_password": NEKO_ADMIN_PASSWORD}
+    return {}
+
+
 @router.get("/join/{workspace_id}")
 def join_streaming_session(
     workspace_id: int,
@@ -47,8 +54,7 @@ def join_streaming_session(
         "workspace_status": workspace_status,
         "stream_url": build_stream_url(current_user.username, workspace_id),
         "neko_url": NEKO_URL,
-        "neko_password": NEKO_PASSWORD,
-        "neko_admin_password": NEKO_ADMIN_PASSWORD,
+        **_neko_secrets(),
         "status": "ready" if neko_health["online"] else "neko_offline",
         "session_id": f"ws-{workspace_id}-{current_user.id}",
         "host": current_user.username,
@@ -71,7 +77,10 @@ def neko_health(
     health = check_neko_health()
     online_count = len(presence_manager.get_online_users()) + 1
     room = simulate_neko_room(workspace_id, online_count)
-    return {**health, "password": NEKO_PASSWORD, "service": "m1k1o/neko:firefox", "room": room}
+    payload = {**health, "service": "m1k1o/neko:firefox", "room": room}
+    if settings.EXPOSE_NEKO_SECRETS:
+        payload["password"] = NEKO_PASSWORD
+    return payload
 
 
 @router.get("/live-status/{workspace_id}")

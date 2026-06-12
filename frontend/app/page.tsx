@@ -9,6 +9,7 @@ import PresenceUserRow from '../components/PresenceUserRow';
 import { usePhase3 } from '../contexts/Phase3Context';
 import { usePresence } from '../contexts/RealtimeContext';
 import SupervisorLiveTools from '../components/SupervisorLiveTools';
+import { apiUrl, authHeaders } from '../lib/api';
 import { getBreakoutRooms } from '../lib/breakoutRooms';
 
 interface Workspace {
@@ -75,9 +76,7 @@ export default function NovaDashboard() {
 
     const fetchWorkspaces = async () => {
       try {
-        const res = await axios.get('http://localhost:8000/api/v1/workspaces/', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await axios.get(apiUrl('/workspaces/'), { headers: authHeaders() });
         setWorkspaces(res.data);
       } catch {
         setWorkspaces([]);

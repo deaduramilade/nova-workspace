@@ -8,8 +8,10 @@ import { SyncEngine } from '../lib/crdt/syncEngine';
 import { CRDTState, SyncStatus, SupervisorFeedback } from '../lib/crdt/types';
 import { FeedbackTool, SupervisorOverview } from '../lib/supervisorTypes';
 
-const SUPERVISOR_API = 'http://localhost:8000/api/v1/supervisor';
-const SYNC_API = 'http://localhost:8000/api/v1/sync';
+import { apiUrl, authHeaders as getAuthHeaders } from '../lib/api';
+
+const SUPERVISOR_API = apiUrl('/supervisor');
+const SYNC_API = apiUrl('/sync');
 
 interface Phase3ContextValue {
   overview: SupervisorOverview | null;
@@ -32,10 +34,7 @@ interface Phase3ContextValue {
 
 const Phase3Context = createContext<Phase3ContextValue | null>(null);
 
-function authHeaders() {
-  const token = localStorage.getItem('access_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+const authHeaders = getAuthHeaders;
 
 function getUserRole(): string {
   try {

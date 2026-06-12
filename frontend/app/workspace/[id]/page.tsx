@@ -25,7 +25,9 @@ import { presenceDotClass } from '../../../lib/presenceUtils';
 
 type SidebarTab = 'live' | 'hours' | 'neko' | 'supervisor' | 'people' | 'chat';
 
-const API = 'http://localhost:8000/api/v1/streaming';
+import { apiUrl, authHeaders as getAuthHeaders } from '../../../lib/api';
+
+const API = apiUrl('/streaming');
 const POLL_INTERVAL_MS = 5000;
 
 function formatElapsed(seconds: number) {
@@ -69,9 +71,7 @@ export default function WorkspacePage() {
     syncNow();
   }, [workspaceId, setActiveWorkspaceId, syncNow]);
 
-  const authHeaders = useCallback(() => ({
-    Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-  }), []);
+  const authHeaders = useCallback(() => getAuthHeaders(), []);
 
   const loadSession = useCallback(async () => {
     const token = localStorage.getItem('access_token');

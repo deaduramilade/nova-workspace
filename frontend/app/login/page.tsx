@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
+import { apiUrl } from '../../lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,7 +21,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:8000/api/v1/auth/login', null, {
+      const response = await axios.post(apiUrl('/auth/login'), null, {
         params: formData,
       });
       localStorage.setItem('access_token', response.data.access_token);

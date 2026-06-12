@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatMessage, ChatTargetType } from '../lib/chatTypes';
 
-const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
+import { WS_BASE } from '../lib/api';
 
 interface UseChatSocketOptions {
   roomId: string;

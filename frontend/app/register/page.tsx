@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
+import { apiUrl } from '../../lib/api';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -22,7 +23,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      await axios.post('http://localhost:8000/api/v1/auth/register', formData);
+      await axios.post(apiUrl('/auth/register'), formData);
       toast.success("Account created successfully. You can now sign in.");
       setTimeout(() => window.location.href = '/login', 1500);
     } catch (error: any) {

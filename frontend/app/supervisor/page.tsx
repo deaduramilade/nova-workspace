@@ -7,6 +7,7 @@ import PageNav from '../../components/PageNav';
 import SupervisorLiveTools from '../../components/SupervisorLiveTools';
 import WorkspaceLiveStatus from '../../components/WorkspaceLiveStatus';
 import { usePhase3 } from '../../contexts/Phase3Context';
+import { apiUrl, authHeaders } from '../../lib/api';
 import { LiveStatusPayload } from '../../lib/workspaceTypes';
 
 export default function SupervisorHubPage() {
@@ -20,9 +21,7 @@ export default function SupervisorHubPage() {
     if (!token) { router.push('/login'); return; }
 
     axios
-      .get(`http://localhost:8000/api/v1/supervisor/workspaces/${workspaceId}/live`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      .get(apiUrl(`/supervisor/workspaces/${workspaceId}/live`), { headers: authHeaders() })
       .then((res) => setLiveStatus(res.data.live_status))
       .catch(() => {});
   }, [workspaceId, router]);
