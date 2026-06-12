@@ -422,6 +422,110 @@ body {
   padding-left: 14px;
 }
 
+/* Workspace streaming */
+.workspace-stream-page {
+  height: 100vh;
+  overflow: hidden;
+  background: var(--nova-bg);
+}
+
+.workspace-stream-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  height: 56px;
+}
+
+.workspace-stream-body {
+  height: calc(100vh - 56px);
+}
+
+.workspace-stream-viewport {
+  background: #030712;
+  min-height: 0;
+}
+
+.workspace-stream-iframe {
+  display: block;
+  background: #030712;
+}
+
+.workspace-stream-sidebar {
+  width: 320px;
+}
+
+.workspace-stream-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 7, 18, 0.92);
+  backdrop-filter: blur(8px);
+}
+
+.workspace-tool-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.workspace-tool-btn:hover {
+  background: rgba(51, 65, 85, 0.8);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.workspace-connect-steps {
+  display: flex;
+  gap: 24px;
+}
+
+.workspace-connect-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--nova-text-subtle);
+  animation: workspace-step-pulse 1.5s ease-in-out infinite;
+}
+
+.workspace-connect-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+}
+
+@keyframes workspace-step-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@media (max-width: 768px) {
+  .workspace-stream-sidebar {
+    position: absolute;
+    right: 0;
+    top: 56px;
+    bottom: 0;
+    z-index: 30;
+    width: min(100%, 320px);
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
+  }
+}
+
 /* Enhanced presence system */
 .presence-status-bar {
   position: fixed;

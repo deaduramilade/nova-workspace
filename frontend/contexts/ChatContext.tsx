@@ -40,6 +40,8 @@ function getUser(): ChatUser {
 function resolveRoomId(pathname: string): string {
   const breakoutMatch = pathname.match(/\/breakout-room\/([^/]+)/);
   if (breakoutMatch) return `breakout-${breakoutMatch[1]}`;
+  const workspaceMatch = pathname.match(/\/workspace\/([^/]+)/);
+  if (workspaceMatch) return `workspace-${workspaceMatch[1]}`;
   return 'team-general';
 }
 
