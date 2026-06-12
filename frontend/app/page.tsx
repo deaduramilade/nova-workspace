@@ -297,6 +297,12 @@ export default function NovaDashboard() {
             >
               Team Game (Break)
             </button>
+            <button
+              onClick={() => router.push('/calls')}
+              className="glass px-6 py-3 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors border border-emerald-400/30"
+            >
+              Calls & Meetings
+            </button>
           </div>
         </section>
       </main>

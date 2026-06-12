@@ -4,12 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import PageNav from '../../../components/PageNav';
+import ChatPanel from '../../../components/ChatPanel';
+import { useChat } from '../../../contexts/ChatContext';
 import { BreakoutRoom, getBreakoutRoom, parseDurationMinutes } from '../../../lib/breakoutRooms';
-
-const MOCK_MESSAGES = [
-  { user: 'John Doe', text: 'Ready to discuss the sprint goals?', time: '2m ago' },
-  { user: 'Alice Smith', text: 'I have the design mockups to share.', time: '1m ago' },
-];
 
 function formatTime(seconds: number) {
   const m = Math.floor(seconds / 60);
@@ -23,9 +20,8 @@ export default function BreakoutRoomPage() {
   const roomId = params.id as string;
   const [room, setRoom] = useState<BreakoutRoom | null>(null);
   const [timeLeft, setTimeLeft] = useState(0);
-  const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState(MOCK_MESSAGES);
   const [loading, setLoading] = useState(true);
+  const { setRoomId, openChat } = useChat();
 
   useEffect(() => {
     const stored = getBreakoutRoom(roomId);
@@ -35,8 +31,9 @@ export default function BreakoutRoomPage() {
     }
     setRoom(stored);
     setTimeLeft(parseDurationMinutes(stored.duration) * 60);
+    setRoomId(`breakout-${roomId}`);
     setLoading(false);
-  }, [roomId]);
+  }, [roomId, setRoomId]);
 
   useEffect(() => {
     if (timeLeft <= 0) return;
@@ -49,16 +46,6 @@ export default function BreakoutRoomPage() {
       toast('Session time ended', { icon: '⏱' });
     }
   }, [timeLeft, room]);
-
-  const sendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!message.trim()) return;
-    setMessages((prev) => [
-      ...prev,
-      { user: 'You', text: message.trim(), time: 'Just now' },
-    ]);
-    setMessage('');
-  };
 
   if (loading) {
     return (
@@ -138,37 +125,11 @@ export default function BreakoutRoomPage() {
               </div>
             </section>
 
-            {/* Chat */}
-            <section className="glass rounded-2xl p-6">
-              <h3 className="text-sm font-semibold mb-4 text-readable-muted uppercase tracking-wide">Team Chat</h3>
-              <div className="space-y-3 max-h-48 overflow-y-auto mb-4">
-                {messages.map((msg, i) => (
-                  <div key={i} className="flex gap-3">
-                    <div className="w-8 h-8 shrink-0 bg-gradient-to-br from-sky-400 to-indigo-500 rounded-full flex items-center justify-center text-[10px] font-semibold">
-                      {msg.user.split(' ').map((n) => n[0]).join('')}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{msg.user}</span>
-                        <span className="text-[10px] text-readable-subtle">{msg.time}</span>
-                      </div>
-                      <p className="text-sm text-readable-muted">{msg.text}</p>
-                    </div>
-                  </div>
-                ))}
+            {/* Real-time chat */}
+            <section className="glass rounded-2xl overflow-hidden">
+              <div className="chat-embedded-wrapper">
+                <ChatPanel embedded />
               </div>
-              <form onSubmit={sendMessage} className="flex gap-2">
-                <input
-                  type="text"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:outline-none focus:border-sky-400/60 text-sm"
-                />
-                <button type="submit" className="btn-primary px-5 py-2.5 rounded-xl text-sm font-medium text-white">
-                  Send
-                </button>
-              </form>
             </section>
           </div>
 
@@ -199,6 +160,12 @@ export default function BreakoutRoomPage() {
               </div>
             </section>
 
+            <button
+              onClick={openChat}
+              className="w-full py-3 glass rounded-xl text-sm font-medium hover:bg-white/5 border border-sky-400/20 text-sky-300"
+            >
+              Open Floating Chat
+            </button>
             <button
               onClick={() => router.push('/')}
               className="w-full py-3 glass rounded-xl text-sm font-medium hover:bg-white/5 border border-amber-500/20 text-amber-300"

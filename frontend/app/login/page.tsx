@@ -24,6 +24,12 @@ export default function LoginPage() {
         params: formData,
       });
       localStorage.setItem('access_token', response.data.access_token);
+      if (response.data.user) {
+        localStorage.setItem('nova_user', JSON.stringify({
+          ...response.data.user,
+          display_name: response.data.user.username,
+        }));
+      }
       toast.success('Welcome back!');
       setTimeout(() => router.push('/'), 800);
     } catch (error: unknown) {

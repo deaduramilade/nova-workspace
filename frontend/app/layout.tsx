@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import AppProviders from "../components/AppProviders";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -21,7 +22,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.className} nova-bg`}>
-        <div className="nova-content">{children}</div>
+        <AppProviders>
+          <div className="nova-content">{children}</div>
+        </AppProviders>
       </body>
     </html>
   );
