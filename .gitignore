@@ -9,7 +9,11 @@ main.py
 # ========================================
 # Python / FastAPI backend
 # ========================================
-*.py
+# IMPORTANT: Source .py files (the actual application code) must be committed.
+# We only ignore build artifacts, caches, and Alembic's template file.
+# Do NOT add broad *.py rules — they break the ability to track backend source
+# (including critical files like alembic/env.py).
+
 script.py.mako
 **/script.py.mako
 

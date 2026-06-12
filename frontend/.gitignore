@@ -5,7 +5,8 @@
 main.py
 
 # Python (if any scripts land in frontend)
-*.py
+# We keep a narrow rule here since frontend is primarily TypeScript/TSX.
+# Avoid broad rules in the root .gitignore.
 script.py.mako
 **/script.py.mako
 __pycache__/
