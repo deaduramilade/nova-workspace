@@ -1,0 +1,24 @@
+# Dependencies and build output (rebuilt inside image)
+node_modules/
+.next/
+out/
+
+# Secrets and local env
+.env
+.env.*
+!.env.example
+
+# Tests and tooling
+coverage/
+.nyc_output/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Docs
+*.md
+README*

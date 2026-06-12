@@ -1,6 +1,11 @@
-# Nova Production Environment — Frontend
-# Copy to frontend/.env.production.local before building for production.
+# =============================================================================
+# Nova Production — Frontend build environment
+# Copy to frontend/.env.production.local before docker build or npm run build
+# =============================================================================
 
 NEXT_PUBLIC_APP_ENV=production
 NEXT_PUBLIC_API_URL=https://your-domain.com/api/v1
 NEXT_PUBLIC_WS_URL=wss://your-domain.com
+
+# Optional: disable verbose client logging in production
+# NEXT_PUBLIC_DEBUG=false

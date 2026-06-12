@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -10,6 +10,8 @@ from app.core.database import init_db, pool_status
 from app.core.performance_middleware import PerformanceMiddleware
 from app.core.rate_limit import rate_limiter
 from app.core.rate_limit_middleware import RateLimitMiddleware
+from app.core.readiness import run_readiness_checks
+from app.core.request_limit_middleware import RequestSizeLimitMiddleware
 from app.core.security_middleware import SecurityHeadersMiddleware
 from app.core.startup_checks import run_startup_security_checks
 
@@ -42,6 +44,7 @@ if settings.ENABLE_RESPONSE_COMPRESSION:
 
 app.add_middleware(PerformanceMiddleware)
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(RequestSizeLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 if settings.is_production and settings.allowed_hosts_list:
@@ -100,7 +103,13 @@ def _security_health_payload() -> dict:
         "password_min_length": settings.PASSWORD_MIN_LENGTH,
         "compression_enabled": settings.ENABLE_RESPONSE_COMPRESSION,
         "performance_middleware": settings.PERFORMANCE_MIDDLEWARE_ENABLED,
+        "readiness_strict": settings.PRODUCTION_READINESS_STRICT,
+        "max_request_body_bytes": settings.MAX_REQUEST_BODY_BYTES,
     }
+
+
+def _readiness_payload() -> dict:
+    return run_readiness_checks()
 
 
 @app.get("/api/v1/health")
@@ -123,6 +132,24 @@ async def security_health():
             _security_health_payload,
         )
     return _security_health_payload()
+
+
+@app.get("/api/v1/health/readiness")
+async def readiness_health(response: Response):
+    result = _readiness_payload()
+    if not result["ready"] and settings.ENVIRONMENT in ("production", "staging"):
+        response.status_code = 503
+    return result
+
+
+@app.get("/api/v1/health/production")
+async def production_config_summary():
+    """Non-sensitive production readiness summary for operators."""
+    summary = settings.production_summary()
+    readiness = run_readiness_checks()
+    summary["ready"] = readiness["ready"]
+    summary["checks"] = {k: v["status"] for k, v in readiness["checks"].items()}
+    return summary
 
 
 @app.get("/api/v1/health/performance")

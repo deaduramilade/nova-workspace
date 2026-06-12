@@ -8,6 +8,7 @@ from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "staging", "production"]
+DeployProfile = Literal["default", "oracle", "oracle-standard"]
 
 WEAK_SECRET_MARKERS = (
     "change",
@@ -27,6 +28,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Nova Workspace"
     VERSION: str = "0.1.0"
     ENVIRONMENT: Environment = "development"
+    DEPLOY_PROFILE: DeployProfile = "default"
     DEBUG: bool = True
 
     # Database
@@ -87,6 +89,12 @@ class Settings(BaseSettings):
     # Password policy
     PASSWORD_MIN_LENGTH: int = 10
 
+    # Server / ops
+    LOG_LEVEL: str = "INFO"
+    UVICORN_WORKERS: int = 1
+    MAX_REQUEST_BODY_BYTES: int = 1_048_576  # 1 MB
+    PRODUCTION_READINESS_STRICT: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -115,6 +123,15 @@ class Settings(BaseSettings):
     def normalize_environment(cls, v: str) -> str:
         return str(v).lower().strip()
 
+    @field_validator("DEPLOY_PROFILE", mode="before")
+    @classmethod
+    def normalize_deploy_profile(cls, v: str) -> str:
+        return str(v).lower().strip()
+
+    @property
+    def is_oracle_profile(self) -> bool:
+        return self.DEPLOY_PROFILE in ("oracle", "oracle-standard")
+
     @model_validator(mode="after")
     def apply_environment_defaults(self) -> "Settings":
         if self.is_production:
@@ -127,7 +144,31 @@ class Settings(BaseSettings):
                 object.__setattr__(self, "ALLOW_REGISTRATION", False)
             if self.TRUST_PROXY_HEADERS is False and "TRUST_PROXY_HEADERS" not in self.model_fields_set:
                 object.__setattr__(self, "TRUST_PROXY_HEADERS", True)
+            if self.PASSWORD_MIN_LENGTH < 12 and "PASSWORD_MIN_LENGTH" not in self.model_fields_set:
+                object.__setattr__(self, "PASSWORD_MIN_LENGTH", 12)
+            if self.ACCESS_TOKEN_EXPIRE_MINUTES > 60 and "ACCESS_TOKEN_EXPIRE_MINUTES" not in self.model_fields_set:
+                object.__setattr__(self, "ACCESS_TOKEN_EXPIRE_MINUTES", 30)
+            if not self.is_oracle_profile and self.UVICORN_WORKERS == 1 and "UVICORN_WORKERS" not in self.model_fields_set:
+                object.__setattr__(self, "UVICORN_WORKERS", 2)
+
+        if self.is_oracle_profile:
+            self._apply_oracle_defaults()
+
         return self
+
+    def _apply_oracle_defaults(self) -> None:
+        """Tune connection pools and workers for Oracle Always Free memory budgets."""
+        compact = self.DEPLOY_PROFILE == "oracle"
+        if "UVICORN_WORKERS" not in self.model_fields_set:
+            object.__setattr__(self, "UVICORN_WORKERS", 1 if compact else 2)
+        if "DB_POOL_SIZE" not in self.model_fields_set:
+            object.__setattr__(self, "DB_POOL_SIZE", 5 if compact else 8)
+        if "DB_MAX_OVERFLOW" not in self.model_fields_set:
+            object.__setattr__(self, "DB_MAX_OVERFLOW", 5 if compact else 8)
+        if "LOG_LEVEL" not in self.model_fields_set:
+            object.__setattr__(self, "LOG_LEVEL", "WARNING" if compact else "INFO")
+        if "RATE_LIMIT_API_PER_MINUTE" not in self.model_fields_set:
+            object.__setattr__(self, "RATE_LIMIT_API_PER_MINUTE", 90 if compact else 120)
 
     def validate_production_secrets(self) -> list[str]:
         """Return list of fatal configuration errors for production."""
@@ -162,7 +203,51 @@ class Settings(BaseSettings):
         if "nova_secure_password" in self.DATABASE_URL:
             errors.append("DATABASE_URL must not use default postgres password in production")
 
+        if self.NEKO_PASSWORD in ("nova", "admin", "password"):
+            errors.append("NEKO_PASSWORD must be changed from default in production")
+
+        if self.NEKO_ADMIN_PASSWORD in ("admin", "nova", "password"):
+            errors.append("NEKO_ADMIN_PASSWORD must be changed from default in production")
+
+        if self.REDIS_URL and "@" not in self.REDIS_URL.split("://", 1)[-1]:
+            if "localhost" not in self.REDIS_URL and "127.0.0.1" not in self.REDIS_URL:
+                errors.append("REDIS_URL should include authentication in production")
+
+        if not self.RATE_LIMIT_ENABLED:
+            errors.append("RATE_LIMIT_ENABLED must be true in production")
+
+        if not self.ENABLE_RESPONSE_COMPRESSION:
+            errors.append("ENABLE_RESPONSE_COMPRESSION should be enabled in production")
+
         return errors
+
+    def production_summary(self) -> dict:
+        return {
+            "environment": self.ENVIRONMENT,
+            "deploy_profile": self.DEPLOY_PROFILE,
+            "debug": self.DEBUG,
+            "security": {
+                "registration_open": self.ALLOW_REGISTRATION,
+                "api_docs_exposed": self.EXPOSE_API_DOCS,
+                "neko_secrets_exposed": self.EXPOSE_NEKO_SECRETS,
+                "rate_limit_enabled": self.RATE_LIMIT_ENABLED,
+                "trust_proxy": self.TRUST_PROXY_HEADERS,
+                "password_min_length": self.PASSWORD_MIN_LENGTH,
+                "token_expire_minutes": self.ACCESS_TOKEN_EXPIRE_MINUTES,
+            },
+            "performance": {
+                "compression": self.ENABLE_RESPONSE_COMPRESSION,
+                "health_cache": self.ENABLE_HEALTH_CACHE,
+                "db_pool_size": self.DB_POOL_SIZE,
+                "uvicorn_workers": self.UVICORN_WORKERS,
+                "gzip_min_bytes": self.GZIP_MINIMUM_SIZE,
+            },
+            "network": {
+                "cors_origins": len(self.cors_origins_list),
+                "allowed_hosts": len(self.allowed_hosts_list),
+                "frontend_url": self.FRONTEND_URL,
+            },
+        }
 
     @staticmethod
     def generate_secret_key() -> str:

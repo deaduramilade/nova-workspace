@@ -1,18 +1,22 @@
-# Nova Production Stack
-# Quick start:
-#   python deploy/generate_secrets.py --domain your-domain.com --write
-#   # Add TLS certs to deploy/certs/fullchain.pem and privkey.pem
-#   docker compose -f docker-compose.prod.yml up -d --build
-#   python deploy/validate_production.py
+# Nova — Oracle Cloud Always Free Tier
+# Compact profile (default): ~1.6 GB container RAM budget
+# Standard profile: docker compose -f docker-compose.oracle.yml --profile standard up -d --build
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: nova-postgres-prod
+    container_name: nova-postgres-oracle
     environment:
       POSTGRES_DB: nova_db
       POSTGRES_USER: nova_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    command: >
+      postgres
+      -c shared_buffers=64MB
+      -c effective_cache_size=128MB
+      -c maintenance_work_mem=32MB
+      -c max_connections=50
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -20,19 +24,24 @@ services:
       - nova-internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nova_user -d nova_db"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
       retries: 5
     deploy:
       resources:
         limits:
-          cpus: "1.0"
-          memory: 512M
+          cpus: "0.75"
+          memory: 256M
 
   redis:
     image: redis:7-alpine
-    container_name: nova-redis-prod
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+    container_name: nova-redis-oracle
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+      --maxmemory 80mb
+      --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -40,46 +49,50 @@ services:
       - nova-internal
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
       retries: 5
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: 256M
+          cpus: "0.25"
+          memory: 96M
 
   neko:
     image: m1k1o/neko:firefox
-    container_name: nova-neko-prod
+    container_name: nova-neko-oracle
     environment:
       NEKO_PASSWORD: ${NEKO_PASSWORD:?Set NEKO_PASSWORD}
       NEKO_ADMIN_PASSWORD: ${NEKO_ADMIN_PASSWORD:?Set NEKO_ADMIN_PASSWORD}
+      NEKO_SCREEN: "1280x720@30"
     restart: unless-stopped
     networks:
       - nova-internal
     deploy:
       resources:
         limits:
-          cpus: "2.0"
-          memory: 1G
+          cpus: "1.0"
+          memory: 512M
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: nova-backend-prod
+    container_name: nova-backend-oracle
     env_file:
       - ./backend/.env
     environment:
+      DEPLOY_PROFILE: oracle
       DATABASE_URL: postgresql://nova_user:${POSTGRES_PASSWORD}@postgres:5432/nova_db
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       NEKO_URL: http://neko:8080
       ENVIRONMENT: production
       DEBUG: "False"
       TRUST_PROXY_HEADERS: "True"
-      UVICORN_WORKERS: "2"
-      LOG_LEVEL: INFO
+      UVICORN_WORKERS: "1"
+      DB_POOL_SIZE: "5"
+      DB_MAX_OVERFLOW: "5"
+      LOG_LEVEL: WARNING
     depends_on:
       postgres:
         condition: service_healthy
@@ -93,24 +106,24 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/readiness"]
       interval: 30s
-      timeout: 5s
+      timeout: 8s
       retries: 3
-      start_period: 25s
+      start_period: 40s
     deploy:
       resources:
         limits:
-          cpus: "2.0"
-          memory: 1G
+          cpus: "1.0"
+          memory: 384M
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://your-domain.com/api/v1}
-        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-wss://your-domain.com}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:?Set NEXT_PUBLIC_WS_URL}
         NEXT_PUBLIC_APP_ENV: production
-    container_name: nova-frontend-prod
+    container_name: nova-frontend-oracle
     restart: unless-stopped
     networks:
       - nova-internal
@@ -125,12 +138,12 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1.0"
-          memory: 512M
+          cpus: "0.5"
+          memory: 256M
 
   nginx:
     image: nginx:1.27-alpine
-    container_name: nova-nginx-prod
+    container_name: nova-nginx-oracle
     ports:
       - "80:80"
       - "443:443"
@@ -148,8 +161,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: 128M
+          cpus: "0.25"
+          memory: 64M
 
 networks:
   nova-internal:

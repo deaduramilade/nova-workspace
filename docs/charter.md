@@ -1,8 +1,8 @@
 # Nova Project Charter
 
-**Version**: 2.1  
+**Version**: 2.2  
 **Phase**: 4 – Production Readiness & Polish (Complete)  
-**Date**: June 12, 2026  
+**Date**: June 12, 2026
 **Repository**: https://github.com/deaduramilade/nova-workspace  
 **License**: Apache-2.0
 
@@ -43,7 +43,7 @@ Nova delivers a unified experience comparable to “Google Docs + VS Code + Curs
 - **Backend**: Python 3.12 + FastAPI with rate limiting and production security hardening.
 - **Streaming Layer**: Neko WebRTC (fully integrated in workspace pages).
 - **AI Layer**: Ollama foundation with custom agent framework (ready for expansion).
-- **Orchestration**: Docker Compose (production-ready configuration available).
+- **Orchestration**: Docker Compose with Oracle Cloud Always Free Tier profile (`docker-compose.oracle.yml`).
 - **Data Layer**: PostgreSQL + Redis.
 - **Real-time**: WebSocket + CRDT foundation for offline synchronization.
 - **Security**: Rate limiting, environment-based configuration, AES-256 encryption support.
@@ -78,6 +78,7 @@ Nova is designed for worldwide enterprise adoption:
 ### 4.4 Resource Efficiency and Accessibility
 
 - Optimized for devices with 4GB RAM or lower.
+- **Oracle Always Free compact profile**: ~1.6 GB container RAM budget (12 GB VM).
 - Low-data mode with delta synchronization and adaptive streaming.
 - Designed for broad accessibility on entry-level hardware and metered/unstable connections.
 
@@ -94,7 +95,8 @@ Nova is designed for worldwide enterprise adoption:
 - Neko streaming integration in workspace pages.
 - Security hardening (rate limiting, secure configuration).
 - CRDT foundation for offline sync.
-- Production deployment guide and docker-compose configuration.
+- Production deployment guide (`docs/deployment.md`) with Oracle Free Tier quick start.
+- Oracle-tuned compose stack, env templates, `deploy/oracle-setup.sh`, and full `deploy/*.sh` script suite.
 
 ---
 

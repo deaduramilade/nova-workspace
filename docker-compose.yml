@@ -22,9 +22,12 @@ services:
   redis:
     image: redis:7-alpine
     container_name: nova-redis
+    command: redis-server --appendonly yes
     volumes:
       - ./volumes/redis:/data
     restart: unless-stopped
+    ports:
+      - "6379:6379"
     deploy:
       resources:
         limits:

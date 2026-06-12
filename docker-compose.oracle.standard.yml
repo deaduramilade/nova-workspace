@@ -1,0 +1,66 @@
+# Nova — Oracle standard profile override (24 GB VM)
+# Usage:
+#   docker compose -f docker-compose.oracle.yml -f docker-compose.oracle.standard.yml up -d --build
+
+services:
+  postgres:
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c effective_cache_size=256MB
+      -c maintenance_work_mem=64MB
+      -c max_connections=100
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  redis:
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 160mb
+      --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 192M
+
+  neko:
+    environment:
+      NEKO_SCREEN: "1920x1080@30"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 768M
+
+  backend:
+    environment:
+      DEPLOY_PROFILE: oracle-standard
+      UVICORN_WORKERS: "2"
+      DB_POOL_SIZE: "8"
+      DB_MAX_OVERFLOW: "8"
+      LOG_LEVEL: INFO
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 768M
+
+  frontend:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 512M
+
+  nginx:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
