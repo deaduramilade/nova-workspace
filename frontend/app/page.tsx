@@ -6,7 +6,9 @@ import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import BreakoutRoomModal, { BreakoutRoom } from '../components/BreakoutRoomModal';
 import PresenceUserRow from '../components/PresenceUserRow';
+import { usePhase3 } from '../contexts/Phase3Context';
 import { usePresence } from '../contexts/RealtimeContext';
+import SupervisorLiveTools from '../components/SupervisorLiveTools';
 import { getBreakoutRooms } from '../lib/breakoutRooms';
 
 interface Workspace {
@@ -55,6 +57,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function NovaDashboard() {
   const router = useRouter();
   const { onlineUsers, offlineUsers, connected, networkOnline } = usePresence();
+  const { overview, syncStatus } = usePhase3();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBreakTimer, setShowBreakTimer] = useState(false);
@@ -183,9 +186,9 @@ export default function NovaDashboard() {
         <section className="mb-10 grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Active Projects', value: displayWorkspaces.length },
-            { label: 'Team Online', value: '12' },
-            { label: 'AI Agents', value: '24' },
-            { label: 'Hours Today', value: '87.5' },
+            { label: 'Team Online', value: overview?.metrics.online_users ?? onlineUsers.length },
+            { label: 'CRDT Sync', value: syncStatus.offline ? 'Offline' : `v${syncStatus.version}` },
+            { label: 'Hours Today', value: overview?.metrics.hours_tracked_today ?? '—' },
           ].map((stat) => (
             <div key={stat.label} className="glass rounded-2xl p-5">
               <div className="flex items-center justify-between mb-3">
@@ -196,26 +199,47 @@ export default function NovaDashboard() {
           ))}
         </section>
 
-        {/* Supervisor panel */}
-        <section className="mb-10 glass rounded-2xl p-6 sm:p-8">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <h3 className="text-base font-semibold">Supervisor Oversight</h3>
-            <span className="text-xs text-readable-subtle ml-auto">Live monitoring</span>
+        {/* Phase 3 — Supervisor + integrations */}
+        <section className="mb-10 grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <div className="glass rounded-2xl p-6 sm:p-8 card-accent card-accent-emerald">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <h3 className="text-base font-semibold">Supervisor Oversight</h3>
+              <span className="text-xs text-readable-subtle ml-auto">Phase 3 · Live</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm mb-5">
+              <div className="stat-pill rounded-xl px-4 py-3">
+                <p className="text-readable-subtle text-xs mb-1">Workspaces</p>
+                <p className="font-semibold text-lg">{overview?.metrics.active_workspaces ?? displayWorkspaces.length}</p>
+              </div>
+              <div className="stat-pill rounded-xl px-4 py-3">
+                <p className="text-readable-subtle text-xs mb-1">Online</p>
+                <p className="font-semibold text-lg">{overview?.metrics.online_users ?? onlineUsers.length}</p>
+              </div>
+              <div className="stat-pill rounded-xl px-4 py-3">
+                <p className="text-readable-subtle text-xs mb-1">Hours Today</p>
+                <p className="font-semibold text-lg">{overview?.metrics.hours_tracked_today ?? '—'}h</p>
+              </div>
+            </div>
+            {overview?.integrations && (
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(overview.integrations).map(([key, val]) => (
+                  <span
+                    key={key}
+                    className={`text-[10px] px-2.5 py-1 rounded-full border ${
+                      val.status === 'connected' || val.status === 'ready' || val.status === 'active'
+                        ? 'border-emerald-400/30 text-emerald-400'
+                        : 'border-amber-400/30 text-amber-400'
+                    }`}
+                  >
+                    {key}: {val.status as string}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-            <div className="stat-pill rounded-xl px-4 py-3">
-              <p className="text-readable-subtle text-xs mb-1">Active Workspaces</p>
-              <p className="font-semibold text-lg">{displayWorkspaces.length}</p>
-            </div>
-            <div className="stat-pill rounded-xl px-4 py-3">
-              <p className="text-readable-subtle text-xs mb-1">Online Users</p>
-              <p className="font-semibold text-lg">12</p>
-            </div>
-            <div className="stat-pill rounded-xl px-4 py-3">
-              <p className="text-readable-subtle text-xs mb-1">Hours Tracked Today</p>
-              <p className="font-semibold text-lg">87.5 hrs</p>
-            </div>
+          <div className="glass rounded-2xl overflow-hidden card-accent card-accent-violet">
+            <SupervisorLiveTools />
           </div>
         </section>
 
@@ -311,6 +335,12 @@ export default function NovaDashboard() {
               className="glass px-6 py-3 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors border border-violet-400/30"
             >
               Team Presence
+            </button>
+            <button
+              onClick={() => router.push('/supervisor')}
+              className="glass px-6 py-3 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors border border-orange-400/30"
+            >
+              Supervisor Hub
             </button>
           </div>
         </section>

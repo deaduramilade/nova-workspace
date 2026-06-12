@@ -8,7 +8,9 @@ import ChatPanel from '../../../components/ChatPanel';
 import NekoStatusPanel from '../../../components/NekoStatusPanel';
 import PresenceUserRow from '../../../components/PresenceUserRow';
 import WorkingHoursPanel from '../../../components/WorkingHoursPanel';
+import SupervisorLiveTools from '../../../components/SupervisorLiveTools';
 import WorkspaceLiveStatus from '../../../components/WorkspaceLiveStatus';
+import { usePhase3 } from '../../../contexts/Phase3Context';
 import { useChat } from '../../../contexts/ChatContext';
 import { usePresence } from '../../../contexts/RealtimeContext';
 import { tickLocalHours } from '../../../lib/workingHours';
@@ -21,7 +23,7 @@ import {
 } from '../../../lib/workspaceTypes';
 import { presenceDotClass } from '../../../lib/presenceUtils';
 
-type SidebarTab = 'live' | 'hours' | 'neko' | 'people' | 'chat';
+type SidebarTab = 'live' | 'hours' | 'neko' | 'supervisor' | 'people' | 'chat';
 
 const API = 'http://localhost:8000/api/v1/streaming';
 const POLL_INTERVAL_MS = 5000;
@@ -60,6 +62,12 @@ export default function WorkspacePage() {
 
   const { setRoomId, openChat } = useChat();
   const { onlineUsers, connected: presenceConnected, myPresence } = usePresence();
+  const { setActiveWorkspaceId, syncNow, syncStatus } = usePhase3();
+
+  useEffect(() => {
+    setActiveWorkspaceId(Number(workspaceId));
+    syncNow();
+  }, [workspaceId, setActiveWorkspaceId, syncNow]);
 
   const authHeaders = useCallback(() => ({
     Authorization: `Bearer ${localStorage.getItem('access_token')}`,
@@ -231,6 +239,12 @@ export default function WorkspacePage() {
               <span>{formatElapsed(sessionSeconds)}</span>
               <span>·</span>
               <span>{liveStatus?.summary.in_neko_stream ?? 0} in stream</span>
+              {syncStatus.pending > 0 && (
+                <>
+                  <span>·</span>
+                  <span className="text-amber-400">{syncStatus.pending} queued</span>
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -291,6 +305,7 @@ export default function WorkspacePage() {
                 ['live', 'Live'],
                 ['hours', 'Hours'],
                 ['neko', 'Neko'],
+                ['supervisor', 'Super'],
                 ['people', 'Team'],
                 ['chat', 'Chat'],
               ] as const).map(([tab, label]) => (
@@ -324,6 +339,9 @@ export default function WorkspacePage() {
                   onRefresh={handleRefresh}
                   onOpenNeko={handlePopOut}
                 />
+              )}
+              {sidebarTab === 'supervisor' && (
+                <SupervisorLiveTools workspaceId={Number(workspaceId)} compact />
               )}
               {sidebarTab === 'people' && (
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">

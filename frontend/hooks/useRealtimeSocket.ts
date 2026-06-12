@@ -154,6 +154,12 @@ export function useRealtimeSocket(
         if (data.event === 'call_logs') setCallLogs(data.logs);
         if (data.event === 'active_calls') setActiveCalls(data.calls);
 
+        if (data.event === 'supervisor_feedback' && data.feedback) {
+          window.dispatchEvent(
+            new CustomEvent('nova-supervisor-feedback', { detail: data.feedback }),
+          );
+        }
+
         const call = data.call as CallSession | undefined;
         if (call?.id) {
           if (data.event === 'call_ended' || call.status === 'ended' || call.status === 'rejected') {
