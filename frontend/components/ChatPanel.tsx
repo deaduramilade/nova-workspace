@@ -2,7 +2,9 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useChat } from '../contexts/ChatContext';
-import { ChatTargetType, ONLINE_USERS, TEAM_OPTIONS } from '../lib/chatTypes';
+import { usePresence } from '../contexts/RealtimeContext';
+import { ChatTargetType, TEAM_OPTIONS } from '../lib/chatTypes';
+import { presenceDotClass } from '../lib/presenceUtils';
 
 function formatTimestamp(iso: string) {
   const d = new Date(iso);
@@ -22,6 +24,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
     connected, messages, displayName, team, setTeam,
     sendMessage, sendNotice, closeChat, roomId, authenticated,
   } = useChat();
+  const { onlineUsers, offlineUsers } = usePresence();
 
   const [input, setInput] = useState('');
   const [targetType, setTargetType] = useState<ChatTargetType>('all');
@@ -60,7 +63,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
             <h3 className="text-sm font-semibold">Team Chat</h3>
             <p className="text-[10px] text-readable-subtle flex items-center gap-1.5">
               <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-              {connected ? 'Live' : 'Reconnecting...'} · {roomId}
+              {connected ? 'Live' : 'Reconnecting...'} · {onlineUsers.length} online · {roomId}
             </p>
           </div>
         </div>
@@ -108,10 +111,30 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
             className="text-xs px-2 py-1 rounded-lg bg-white/5 border border-white/10 focus:outline-none"
           >
             <option value="" className="bg-slate-900">Select person</option>
-            {ONLINE_USERS.map((u) => <option key={u} value={u} className="bg-slate-900">{u}</option>)}
+            {onlineUsers.map((u) => (
+              <option key={u.username} value={u.username} className="bg-slate-900">
+                {u.display_name} (online)
+              </option>
+            ))}
+            {offlineUsers.map((u) => (
+              <option key={u.username} value={u.username} className="bg-slate-900" disabled>
+                {u.display_name} (offline)
+              </option>
+            ))}
           </select>
         )}
       </div>
+
+      {onlineUsers.length > 0 && (
+        <div className="px-4 py-2 border-b border-white/5 flex gap-2 overflow-x-auto">
+          {onlineUsers.slice(0, 6).map((u) => (
+            <span key={u.username} className="flex items-center gap-1 text-[10px] stat-pill px-2 py-1 shrink-0">
+              <span className={`w-1.5 h-1.5 rounded-full ${presenceDotClass(u.status, u.is_online)}`} />
+              {u.display_name.split(' ')[0]}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="chat-panel-messages">
         {!authenticated && (

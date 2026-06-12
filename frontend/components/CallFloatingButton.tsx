@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCalls } from '../contexts/CallContext';
+import { useCalls } from '../contexts/RealtimeContext';
 
 export default function CallFloatingButton() {
   const pathname = usePathname();

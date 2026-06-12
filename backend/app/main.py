@@ -12,6 +12,7 @@ from app.api.v1.sessions import router as sessions_router
 from app.api.v1.streaming import router as streaming_router
 from app.api.v1.chat import router as chat_router
 from app.api.v1.calls import router as calls_router
+from app.api.v1.presence import router as presence_router
 
 load_dotenv()
 
@@ -39,6 +40,7 @@ app.include_router(sessions_router, prefix="/api/v1/sessions", tags=["sessions"]
 app.include_router(streaming_router, prefix="/api/v1/streaming", tags=["streaming"])
 app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
 app.include_router(calls_router, prefix="/api/v1/calls", tags=["calls"])
+app.include_router(presence_router, prefix="/api/v1/presence", tags=["presence"])
 
 @app.get("/api/v1/health")
 async def health_check():

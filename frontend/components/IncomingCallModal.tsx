@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useCalls } from '../contexts/CallContext';
+import { useCalls } from '../contexts/RealtimeContext';
 import { CALL_TYPE_LABELS, CALL_TYPE_ICONS } from '../lib/callTypes';
 
 export default function IncomingCallModal() {

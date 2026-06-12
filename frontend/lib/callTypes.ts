@@ -1,7 +1,10 @@
+export type { PresenceStatus as UserCallStatus, PresenceUser, PresenceStats } from './presenceTypes';
+export type { PresenceUser as OnlineUser } from './presenceTypes';
+export { DIRECTORY_USERS, CALLABLE_USERS } from './presenceTypes';
+
 export type CallType = '1on1' | 'group' | 'meeting' | 'presentation';
 export type CallStatus = 'ringing' | 'ongoing' | 'ended' | 'missed' | 'rejected';
 export type CallDirection = 'outgoing' | 'incoming' | 'missed';
-export type UserCallStatus = 'online' | 'busy' | 'in_call';
 
 export interface CallParticipant {
   username: string;
@@ -36,20 +39,6 @@ export interface CallLogEntry {
   timestamp: string;
   duration_seconds: number | null;
 }
-
-export interface OnlineUser {
-  username: string;
-  display_name: string;
-  status: UserCallStatus;
-}
-
-export const CALLABLE_USERS = [
-  { username: 'johndoe', display_name: 'John Doe', status: 'online' as const },
-  { username: 'alicesmith', display_name: 'Alice Smith', status: 'online' as const },
-  { username: 'michaelchen', display_name: 'Michael Chen', status: 'online' as const },
-  { username: 'sarahlee', display_name: 'Sarah Lee', status: 'busy' as const },
-  { username: 'davidkim', display_name: 'David Kim', status: 'online' as const },
-];
 
 export const CALL_TYPE_LABELS: Record<CallType, string> = {
   '1on1': '1-on-1 Call',

@@ -3,8 +3,11 @@
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PageNav from '../../components/PageNav';
-import { useCalls } from '../../contexts/CallContext';
-import { CALL_TYPE_ICONS, CALL_TYPE_LABELS, CallLogEntry, CallType, OnlineUser } from '../../lib/callTypes';
+import PresenceUserRow from '../../components/PresenceUserRow';
+import { useCalls } from '../../contexts/RealtimeContext';
+import { CALL_TYPE_ICONS, CALL_TYPE_LABELS, CallLogEntry, CallType } from '../../lib/callTypes';
+import { PresenceUser } from '../../lib/presenceTypes';
+import { canCallUser } from '../../lib/presenceUtils';
 
 type Tab = 'users' | 'ongoing' | 'received' | 'missed' | 'all';
 
@@ -50,42 +53,12 @@ function LogRow({ log, onJoin }: { log: CallLogEntry; onJoin?: () => void }) {
   );
 }
 
-function UserRow({ user, onCall }: { user: OnlineUser; onCall: (type: CallType) => void }) {
-  const statusColor = user.status === 'online' ? 'bg-emerald-400' : user.status === 'in_call' ? 'bg-sky-400' : 'bg-amber-400';
-  return (
-    <div className="glass rounded-xl p-4 flex items-center gap-3">
-      <div className="relative">
-        <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-purple-500 rounded-full flex items-center justify-center text-xs font-semibold">
-          {user.display_name.split(' ').map((n) => n[0]).join('')}
-        </div>
-        <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${statusColor}`} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{user.display_name}</p>
-        <p className="text-xs text-readable-subtle capitalize">{user.status.replace('_', ' ')}</p>
-      </div>
-      <div className="flex gap-1.5 shrink-0">
-        {(['1on1', 'meeting'] as CallType[]).map((type) => (
-          <button
-            key={type}
-            onClick={() => onCall(type)}
-            disabled={user.status === 'in_call'}
-            className="glass px-2.5 py-1.5 rounded-lg text-[10px] font-medium hover:bg-white/5 disabled:opacity-40"
-            title={CALL_TYPE_LABELS[type]}
-          >
-            {CALL_TYPE_ICONS[type]}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function CallsPage() {
   const router = useRouter();
   const {
-    connected, onlineUsers, callLogs, activeCalls,
-    initiateCall, joinCall, authenticated,
+    connected, networkOnline, onlineUsers, offlineUsers, presenceDirectory,
+    myPresence, callLogs, activeCalls,
+    initiateCall, joinCall, setPresence, authenticated,
   } = useCalls();
   const [tab, setTab] = useState<Tab>('users');
   const [callType, setCallType] = useState<CallType>('group');
@@ -94,23 +67,39 @@ export default function CallsPage() {
   const missed = useMemo(() => callLogs.filter((l) => l.status === 'missed'), [callLogs]);
   const received = useMemo(() => callLogs.filter((l) => l.direction === 'incoming' && l.status !== 'missed'), [callLogs]);
 
-  const handleCallUser = (user: OnlineUser, type: CallType) => {
+  const selectableUsers = useMemo(
+    () => presenceDirectory.filter((u) => canCallUser(u)),
+    [presenceDirectory]
+  );
+
+  const handleCallUser = (user: PresenceUser, type: CallType) => {
+    if (!canCallUser(user)) return;
     const names = { [user.username]: user.display_name };
     initiateCall(type, [user.username], `${CALL_TYPE_LABELS[type]} with ${user.display_name}`, names);
   };
 
   const handleGroupCall = () => {
-    if (selectedUsers.length === 0) return;
+    const callableSelected = selectedUsers.filter((u) => {
+      const found = presenceDirectory.find((o) => o.username === u);
+      return found && canCallUser(found);
+    });
+    if (callableSelected.length === 0) return;
     const names: Record<string, string> = {};
-    selectedUsers.forEach((u) => {
-      const found = onlineUsers.find((o) => o.username === u);
+    callableSelected.forEach((u) => {
+      const found = presenceDirectory.find((o) => o.username === u);
       if (found) names[u] = found.display_name;
     });
-    initiateCall(callType, selectedUsers, `${CALL_TYPE_LABELS[callType]}`, names);
+    initiateCall(callType, callableSelected, `${CALL_TYPE_LABELS[callType]}`, names);
   };
 
+  const connectionLabel = !networkOnline
+    ? 'You are offline'
+    : connected
+      ? `${onlineUsers.length} online · ${offlineUsers.length} offline`
+      : 'Reconnecting...';
+
   const tabs: { id: Tab; label: string; count?: number }[] = [
-    { id: 'users', label: 'Call Users', count: onlineUsers.length },
+    { id: 'users', label: 'Team Directory', count: presenceDirectory.length },
     { id: 'ongoing', label: 'Ongoing', count: activeCalls.length },
     { id: 'received', label: 'Received', count: received.length },
     { id: 'missed', label: 'Missed', count: missed.length },
@@ -121,14 +110,20 @@ export default function CallsPage() {
     <div className="min-h-screen text-readable">
       <PageNav
         title="Calls & Meetings"
-        status={{ label: connected ? 'Signaling live' : 'Reconnecting...', active: connected }}
+        status={{ label: connectionLabel, active: connected && networkOnline }}
       />
 
       <main className="pt-20 pb-12 px-6 lg:px-8 max-w-4xl mx-auto">
+        {!networkOnline && (
+          <div className="glass rounded-xl p-4 mb-6 border border-amber-400/30 text-sm text-amber-200/90">
+            You are offline. Calls and presence updates will resume when your connection returns.
+          </div>
+        )}
+
         <header className="mb-8">
           <h2 className="text-2xl font-bold tracking-tight mb-2">Call Center</h2>
           <p className="text-readable-muted text-sm">
-            1-on-1 calls, group calls, meetings, and live demo presentations.
+            Real-time presence — see who is online, busy, in a call, or offline.
           </p>
         </header>
 
@@ -138,7 +133,26 @@ export default function CallsPage() {
           </div>
         )}
 
-        {/* Quick actions */}
+        {authenticated && myPresence && (
+          <section className="glass rounded-xl p-4 mb-6 flex flex-wrap items-center gap-3">
+            <span className="text-xs text-readable-subtle">Your status:</span>
+            {(['online', 'busy', 'away'] as const).map((status) => (
+              <button
+                key={status}
+                onClick={() => setPresence(status)}
+                disabled={myPresence.status === 'in_call'}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+                  myPresence.status === status
+                    ? 'bg-sky-500/25 border border-sky-400/40 text-sky-300'
+                    : 'stat-pill'
+                }`}
+              >
+                {status}
+              </button>
+            ))}
+          </section>
+        )}
+
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
           {(['1on1', 'group', 'meeting', 'presentation'] as CallType[]).map((type) => (
             <button
@@ -152,7 +166,6 @@ export default function CallsPage() {
           ))}
         </section>
 
-        {/* Tabs */}
         <div className="flex gap-2 overflow-x-auto mb-6 pb-1">
           {tabs.map((t) => (
             <button
@@ -167,41 +180,62 @@ export default function CallsPage() {
           ))}
         </div>
 
-        {/* Tab content */}
         {tab === 'users' && (
           <div className="space-y-6">
             <div className="glass rounded-2xl p-5">
               <h3 className="text-sm font-semibold mb-3">Start {CALL_TYPE_LABELS[callType]}</h3>
-              <p className="text-xs text-readable-subtle mb-3">Select users then start:</p>
+              <p className="text-xs text-readable-subtle mb-3">Select online users (offline users cannot be called):</p>
               <div className="flex flex-wrap gap-2 mb-4">
-                {onlineUsers.map((u) => (
-                  <button
-                    key={u.username}
-                    onClick={() => setSelectedUsers((prev) =>
-                      prev.includes(u.username) ? prev.filter((x) => x !== u.username) : [...prev, u.username]
-                    )}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      selectedUsers.includes(u.username)
-                        ? 'bg-sky-500/25 border border-sky-400/40 text-sky-300'
-                        : 'stat-pill'
-                    }`}
-                  >
-                    {u.display_name}
-                  </button>
-                ))}
+                {presenceDirectory.map((u) => {
+                  const callable = canCallUser(u);
+                  return (
+                    <button
+                      key={u.username}
+                      onClick={() => callable && setSelectedUsers((prev) =>
+                        prev.includes(u.username) ? prev.filter((x) => x !== u.username) : [...prev, u.username]
+                      )}
+                      disabled={!callable}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        selectedUsers.includes(u.username)
+                          ? 'bg-sky-500/25 border border-sky-400/40 text-sky-300'
+                          : 'stat-pill'
+                      } ${!callable ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    >
+                      {u.display_name}
+                    </button>
+                  );
+                })}
               </div>
               <button
                 onClick={handleGroupCall}
-                disabled={selectedUsers.length === 0}
+                disabled={selectedUsers.filter((u) => selectableUsers.some((s) => s.username === u)).length === 0}
                 className="btn-primary px-6 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
               >
                 Start {CALL_TYPE_LABELS[callType]}
               </button>
             </div>
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-readable-muted uppercase tracking-wide">People to call</h3>
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-readable-muted uppercase tracking-wide">
+                Online ({onlineUsers.length})
+              </h3>
+              {onlineUsers.length === 0 && (
+                <p className="text-readable-subtle text-sm text-center py-4">No one else is online right now.</p>
+              )}
               {onlineUsers.map((u) => (
-                <UserRow key={u.username} user={u} onCall={(type) => handleCallUser(u, type)} />
+                <PresenceUserRow key={u.username} user={u} onCall={(type) => handleCallUser(u, type)} />
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-readable-muted uppercase tracking-wide">
+                Offline ({offlineUsers.length})
+              </h3>
+              {offlineUsers.length === 0 && (
+                <p className="text-readable-subtle text-sm text-center py-4">Everyone in the directory is online.</p>
+              )}
+              {offlineUsers.map((u) => (
+                <PresenceUserRow key={u.username} user={u} />
               ))}
             </div>
           </div>

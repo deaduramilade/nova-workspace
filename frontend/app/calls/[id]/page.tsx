@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useCalls } from '../../../contexts/CallContext';
+import { useCalls } from '../../../contexts/RealtimeContext';
 import { CALL_TYPE_ICONS, CALL_TYPE_LABELS } from '../../../lib/callTypes';
 
 export default function ActiveCallPage() {

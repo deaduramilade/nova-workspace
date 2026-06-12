@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import BreakoutRoomModal, { BreakoutRoom } from '../components/BreakoutRoomModal';
+import PresenceUserRow from '../components/PresenceUserRow';
+import { usePresence } from '../contexts/RealtimeContext';
 import { getBreakoutRooms } from '../lib/breakoutRooms';
 
 interface Workspace {
@@ -21,7 +23,7 @@ const PROJECT_META = [
   { humans: 3, agents: 4, sessions: 5, accent: 'card-accent-amber' },
 ];
 
-const ONLINE_USERS = [
+const BREAKOUT_ONLINE_USERS = [
   { name: 'John Doe', status: 'Working', location: 'Workspace 1', hours: '6.5h', weather: '28°C Lagos' },
   { name: 'Alice Smith', status: 'In session', location: 'Workspace 2', hours: '4.2h', weather: '27°C Cloudy' },
   { name: 'Michael Chen', status: 'Available', location: 'Workspace 1', hours: '7.8h', weather: '29°C' },
@@ -52,6 +54,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function NovaDashboard() {
   const router = useRouter();
+  const { onlineUsers, offlineUsers, connected, networkOnline } = usePresence();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBreakTimer, setShowBreakTimer] = useState(false);
@@ -303,38 +306,48 @@ export default function NovaDashboard() {
             >
               Calls & Meetings
             </button>
+            <button
+              onClick={() => router.push('/presence')}
+              className="glass px-6 py-3 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors border border-violet-400/30"
+            >
+              Team Presence
+            </button>
           </div>
         </section>
       </main>
 
-      {/* Online users sidebar */}
+      {/* Team presence sidebar */}
       <aside className="w-80 border-l border-white/10 glass-dark fixed right-0 top-0 bottom-0 overflow-auto hidden lg:block z-40">
         <div className="p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <div className="w-2 h-2 rounded-full bg-emerald-400" />
-            <h3 className="text-base font-semibold">Online Now</h3>
-            <span className="text-xs text-readable-subtle ml-auto">{ONLINE_USERS.length} users</span>
+          <div className="flex items-center gap-2 mb-2">
+            <div className={`w-2 h-2 rounded-full ${connected && networkOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+            <h3 className="text-base font-semibold">Team Presence</h3>
+          </div>
+          <p className="text-xs text-readable-subtle mb-5">
+            {networkOnline
+              ? `${onlineUsers.length} online · ${offlineUsers.length} offline`
+              : 'You are offline'}
+          </p>
+
+          <div className="space-y-2 mb-4">
+            <p className="text-[10px] text-readable-subtle uppercase tracking-wide">Online</p>
+            {onlineUsers.length === 0 ? (
+              <p className="text-xs text-readable-subtle py-2">No teammates online</p>
+            ) : (
+              onlineUsers.map((user) => (
+                <PresenceUserRow key={user.username} user={user} compact />
+              ))
+            )}
           </div>
 
-          <div className="space-y-3">
-            {ONLINE_USERS.map((user) => (
-              <div key={user.name} className="glass rounded-xl p-4 flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-purple-500 rounded-full flex items-center justify-center font-semibold text-xs shrink-0">
-                  {user.name.split(' ').map((n) => n[0]).join('')}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">{user.name}</p>
-                  <p className="text-xs text-readable-subtle truncate">{user.location}</p>
-                  <p className="text-xs text-readable-subtle">Today: {user.hours}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="inline-block px-2 py-0.5 badge-active text-[10px] rounded-full mb-1">
-                    {user.status}
-                  </span>
-                  <p className="text-[10px] text-readable-subtle">{user.weather}</p>
-                </div>
-              </div>
+          <div className="space-y-2">
+            <p className="text-[10px] text-readable-subtle uppercase tracking-wide">Offline</p>
+            {offlineUsers.slice(0, 5).map((user) => (
+              <PresenceUserRow key={user.username} user={user} compact />
             ))}
+            {offlineUsers.length > 5 && (
+              <p className="text-[10px] text-readable-subtle text-center">+{offlineUsers.length - 5} more offline</p>
+            )}
           </div>
 
           {activeBreakoutRooms.length > 0 && (
@@ -387,7 +400,7 @@ export default function NovaDashboard() {
       <BreakoutRoomModal
         isOpen={showBreakoutModal}
         onClose={() => setShowBreakoutModal(false)}
-        onlineUsers={ONLINE_USERS}
+        onlineUsers={BREAKOUT_ONLINE_USERS}
         onRoomCreated={(room) => {
           setActiveBreakoutRooms(getBreakoutRooms());
           toast.success(`Breakout room "${room.name}" created`);
