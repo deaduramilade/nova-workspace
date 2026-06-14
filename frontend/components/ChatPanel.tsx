@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import axios from 'axios';
 import { useChat } from '../contexts/ChatContext';
 import { usePresence } from '../contexts/RealtimeContext';
-import { ChatTargetType, TEAM_OPTIONS } from '../lib/chatTypes';
+import { Attachment, ChatTargetType, TEAM_OPTIONS } from '../lib/chatTypes';
 import { presenceDotClass } from '../lib/presenceUtils';
+import { apiUrl, authHeaders } from '../lib/api';
 
 function formatTimestamp(iso: string) {
   const d = new Date(iso);
@@ -22,13 +24,15 @@ interface ChatPanelProps {
 export default function ChatPanel({ embedded = false }: ChatPanelProps) {
   const {
     connected, messages, displayName, team, setTeam,
-    sendMessage, sendNotice, closeChat, roomId, authenticated,
+    sendMessage, sendNotice, sendAttachment, closeChat, roomId, authenticated,
   } = useChat();
   const { onlineUsers, offlineUsers } = usePresence();
 
   const [input, setInput] = useState('');
   const [targetType, setTargetType] = useState<ChatTargetType>('all');
   const [targetValue, setTargetValue] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,6 +52,45 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
     const text = input.trim() || `Team notice from ${displayName}`;
     sendNotice(text, targetType, targetType === 'all' ? undefined : targetValue);
     setInput('');
+  };
+
+  const triggerFileUpload = () => {
+    if (!uploading) fileInputRef.current?.click();
+  };
+
+  const performUpload = async (file: File) => {
+    if (!file || uploading) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await axios.post(apiUrl('/files/upload'), form, {
+        headers: { ...authHeaders(), 'Content-Type': 'multipart/form-data' },
+      });
+      const data = res.data;
+      const attachment: Attachment = {
+        id: data.id,
+        filename: data.filename,
+        url: apiUrl(data.download_path),
+        size: data.size,
+        content_type: data.content_type,
+      };
+      const caption = input.trim();
+      const ok = sendAttachment(attachment, caption, targetType, targetType === 'all' ? undefined : targetValue);
+      if (ok) setInput('');
+    } catch (e: any) {
+      // eslint-disable-next-line no-alert
+      alert(e?.response?.data?.detail || 'Upload failed. Check file size or connection.');
+    } finally {
+      setUploading(false);
+      // reset input so same file can be picked again
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) performUpload(f);
   };
 
   return (
@@ -174,6 +217,36 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
                   )}
                 </div>
                 <p className="text-sm text-readable-muted break-words">{msg.content}</p>
+                {msg.attachment && (
+                  <>
+                    {msg.attachment.content_type?.startsWith('image/') && (
+                      <a href={msg.attachment.url} target="_blank" rel="noopener noreferrer" className="block mt-1.5">
+                        <img
+                          src={msg.attachment.url}
+                          alt={msg.attachment.filename}
+                          className="max-h-40 max-w-[240px] rounded-lg border border-white/10 object-contain bg-black/20"
+                          loading="lazy"
+                        />
+                      </a>
+                    )}
+                    <a
+                      href={msg.attachment.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={msg.attachment.filename}
+                      className="mt-1.5 inline-flex items-center gap-2 text-xs rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 hover:bg-white/10 hover:border-sky-400/30 max-w-full"
+                      title={`Download ${msg.attachment.filename}`}
+                    >
+                      <span className="text-base leading-none">📎</span>
+                      <span className="truncate max-w-[220px]">{msg.attachment.filename}</span>
+                      {msg.attachment.size != null && (
+                        <span className="text-[10px] text-readable-subtle ml-1 shrink-0">
+                          {(msg.attachment.size / 1024).toFixed(msg.attachment.size > 1024 * 1024 ? 1 : 0)}k
+                        </span>
+                      )}
+                    </a>
+                  </>
+                )}
               </div>
             </div>
           );
@@ -182,6 +255,22 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
       </div>
 
       <form onSubmit={handleSend} className="chat-panel-input">
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={onFileChange}
+          disabled={uploading}
+        />
+        <button
+          type="button"
+          onClick={triggerFileUpload}
+          disabled={uploading}
+          className="glass px-2.5 py-2 rounded-xl text-sm border border-white/10 hover:border-white/20 disabled:opacity-50"
+          title="Attach file (uploads and shares in chat)"
+        >
+          {uploading ? '⏳' : '📎'}
+        </button>
         <input
           type="text"
           value={input}
@@ -192,14 +281,16 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
             `Notice to ${targetValue || 'team'}...`
           }
           className="flex-1 px-3 py-2 rounded-xl bg-white/5 border border-white/10 focus:outline-none focus:border-sky-400/60 text-sm"
+          disabled={uploading}
         />
-        <button type="submit" className="btn-primary px-4 py-2 rounded-xl text-xs font-semibold text-white">
+        <button type="submit" disabled={uploading} className="btn-primary px-4 py-2 rounded-xl text-xs font-semibold text-white disabled:opacity-50">
           Send
         </button>
         <button
           type="button"
           onClick={handleQuickNotice}
-          className="glass px-3 py-2 rounded-xl text-xs font-medium border border-amber-500/20 text-amber-300"
+          disabled={uploading}
+          className="glass px-3 py-2 rounded-xl text-xs font-medium border border-amber-500/20 text-amber-300 disabled:opacity-50"
           title="Send as notice"
         >
           Notice

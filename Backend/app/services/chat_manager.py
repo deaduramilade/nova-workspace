@@ -53,13 +53,16 @@ class ChatManager:
     async def handle_message(self, conn: ChatConnection, data: dict):
         msg_type = data.get("type", "message")
         content = (data.get("content") or "").strip()
-        if not content:
+        attachment = data.get("attachment") or None  # {filename, url, size?, content_type?, ...}
+
+        # Allow pure-attachment messages (no text caption required)
+        if not content and not attachment:
             return
 
         target_type = data.get("target_type", "all")
         target_value = data.get("target_value")
 
-        payload = {
+        payload: dict = {
             "type": msg_type,
             "room_id": conn.room_id,
             "content": content,
@@ -69,6 +72,15 @@ class ChatManager:
             "target_value": target_value,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+        if attachment:
+            # Only include safe known keys
+            safe_attachment = {
+                k: attachment[k]
+                for k in ("id", "filename", "url", "size", "content_type")
+                if k in attachment and attachment[k] is not None
+            }
+            if safe_attachment:
+                payload["attachment"] = safe_attachment
 
         recipients = self._resolve_recipients(conn, target_type, target_value)
         await self._send_to(recipients, payload)

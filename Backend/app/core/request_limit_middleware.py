@@ -18,12 +18,16 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                     size = int(content_length)
                 except ValueError:
                     size = 0
-                if size > settings.MAX_REQUEST_BODY_BYTES:
+                # Use higher limit for file uploads (chat + workspace + call shares)
+                is_upload = request.url.path.startswith(("/api/v1/files/upload", "/files/upload"))
+                limit = settings.MAX_UPLOAD_SIZE_BYTES if is_upload else settings.MAX_REQUEST_BODY_BYTES
+                if size > limit:
                     return JSONResponse(
                         status_code=413,
                         content={
                             "detail": "Request body too large",
-                            "max_bytes": settings.MAX_REQUEST_BODY_BYTES,
+                            "max_bytes": limit,
+                            "is_upload": is_upload,
                         },
                     )
 

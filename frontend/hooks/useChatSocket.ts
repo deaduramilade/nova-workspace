@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChatMessage, ChatTargetType } from '../lib/chatTypes';
+import { Attachment, ChatMessage, ChatTargetType } from '../lib/chatTypes';
 
-import { WS_BASE } from '../lib/api';
+import { WS_BASE, apiUrl } from '../lib/api';
 
 interface UseChatSocketOptions {
   roomId: string;
@@ -94,5 +94,20 @@ export function useChatSocket({
     []
   );
 
-  return { connected, messages, sendMessage, sendNotice, username };
+  const sendAttachment = useCallback(
+    (attachment: Attachment, caption = '', targetType: ChatTargetType = 'all', targetValue?: string) => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return false;
+      wsRef.current.send(JSON.stringify({
+        type: 'message',
+        content: (caption || '').trim(),
+        attachment,
+        target_type: targetType,
+        target_value: targetValue || null,
+      }));
+      return true;
+    },
+    []
+  );
+
+  return { connected, messages, sendMessage, sendNotice, sendAttachment, username };
 }

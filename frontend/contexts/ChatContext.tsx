@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { usePathname } from 'next/navigation';
 import { useChatSocket } from '../hooks/useChatSocket';
 import { playMessageSound } from '../lib/notificationSound';
-import { ChatMessage, ChatTargetType, ChatUser } from '../lib/chatTypes';
+import { Attachment, ChatMessage, ChatTargetType, ChatUser } from '../lib/chatTypes';
 
 interface ChatContextValue {
   roomId: string;
@@ -21,6 +21,7 @@ interface ChatContextValue {
   toggleChat: () => void;
   sendMessage: (content: string, targetType?: ChatTargetType, targetValue?: string) => boolean;
   sendNotice: (content: string, targetType?: ChatTargetType, targetValue?: string) => boolean;
+  sendAttachment: (attachment: Attachment, caption?: string, targetType?: ChatTargetType, targetValue?: string) => boolean;
   clearUnread: () => void;
   setRoomId: (id: string) => void;
   authenticated: boolean;
@@ -83,7 +84,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     [isOpen]
   );
 
-  const { connected, messages, sendMessage, sendNotice, username } = useChatSocket({
+  const { connected, messages, sendMessage, sendNotice, sendAttachment, username } = useChatSocket({
     roomId,
     displayName,
     username: user.username,
@@ -118,11 +119,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       toggleChat,
       sendMessage,
       sendNotice,
+      sendAttachment,
       clearUnread,
       setRoomId,
       authenticated: hasToken,
     }),
-    [roomId, connected, messages, unreadCount, isOpen, displayName, username, team, sendMessage, sendNotice, hasToken]
+    [roomId, connected, messages, unreadCount, isOpen, displayName, username, team, sendMessage, sendNotice, sendAttachment, hasToken]
   );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

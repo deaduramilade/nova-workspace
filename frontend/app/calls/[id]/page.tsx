@@ -1,9 +1,14 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import axios from 'axios';
+import toast, { Toaster } from 'react-hot-toast';
 import { useCalls } from '../../../contexts/RealtimeContext';
+import { useChat } from '../../../contexts/ChatContext';
 import { CALL_TYPE_ICONS, CALL_TYPE_LABELS } from '../../../lib/callTypes';
+import { Attachment } from '../../../lib/chatTypes';
+import { apiUrl, authHeaders } from '../../../lib/api';
 
 export default function ActiveCallPage() {
   const params = useParams();
@@ -17,6 +22,11 @@ export default function ActiveCallPage() {
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [callUploading, setCallUploading] = useState(false);
+  const [sharedInCall, setSharedInCall] = useState<Attachment[]>([]);
+  const callFileInputRef = useRef<HTMLInputElement>(null);
+
+  const { sendAttachment: chatSendAttachment } = useChat();
 
   const call = currentCall?.id === callId
     ? currentCall
@@ -41,6 +51,47 @@ export default function ActiveCallPage() {
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
+  const triggerCallFileShare = () => {
+    if (!callUploading) callFileInputRef.current?.click();
+  };
+
+  const handleCallFileShare = async (file: File) => {
+    if (!file || callUploading) return;
+    setCallUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await axios.post(apiUrl('/files/upload'), form, {
+        headers: { ...authHeaders(), 'Content-Type': 'multipart/form-data' },
+      });
+      const data = res.data;
+      const att: Attachment = {
+        id: data.id,
+        filename: data.filename,
+        url: apiUrl(data.download_path),
+        size: data.size,
+        content_type: data.content_type,
+      };
+      // Post to chat (will land in the room resolved for /calls path = team-general)
+      if (chatSendAttachment) {
+        chatSendAttachment(att, `Shared in call: ${call?.title || ''}`.trim(), 'all');
+      }
+      // Keep a local list for this call UI
+      setSharedInCall((prev) => [att, ...prev].slice(0, 12));
+      toast.success(`Shared ${data.filename} (see Team Chat)`);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Call file share failed');
+    } finally {
+      setCallUploading(false);
+      if (callFileInputRef.current) callFileInputRef.current.value = '';
+    }
+  };
+
+  const onCallFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) handleCallFileShare(f);
+  };
+
   const isHost = call?.host === username;
   const isPresentation = call?.call_type === 'presentation' || call?.presentation_active;
 
@@ -57,6 +108,9 @@ export default function ActiveCallPage() {
 
   return (
     <div className="min-h-screen flex flex-col text-readable bg-black/40">
+      <Toaster position="top-center" />
+      <input ref={callFileInputRef} type="file" className="hidden" onChange={onCallFileChange} disabled={callUploading} />
+
       {/* Top bar */}
       <div className="glass border-b border-white/10 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -142,6 +196,14 @@ export default function ActiveCallPage() {
           >
             {cameraOff ? '📷' : '📹'}
           </button>
+          <button
+            onClick={triggerCallFileShare}
+            disabled={callUploading}
+            className="call-control-btn"
+            title="Share a file with call participants (also appears in Team Chat)"
+          >
+            {callUploading ? '⏳' : '📤'} Share file
+          </button>
           {isHost && isPresentation && (
             <button
               onClick={() => call.presentation_active ? stopPresentation(call.id) : startPresentation(call.id)}
@@ -157,6 +219,29 @@ export default function ActiveCallPage() {
             End Call
           </button>
         </div>
+
+        {/* Files shared during this call (local view + also posted to chat) */}
+        {sharedInCall.length > 0 && (
+          <div className="max-w-2xl mx-auto mt-3 pt-3 border-t border-white/10">
+            <p className="text-[10px] uppercase tracking-wide text-readable-subtle mb-1.5 px-1">Files shared in this call</p>
+            <div className="flex flex-wrap gap-2">
+              {sharedInCall.map((att, idx) => (
+                <a
+                  key={`${att.id || att.filename}-${idx}`}
+                  href={att.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={att.filename}
+                  className="inline-flex items-center gap-1.5 text-xs glass px-2 py-1 rounded-lg border border-white/10 hover:border-sky-400/30 truncate max-w-[240px]"
+                  title={att.filename}
+                >
+                  📎 <span className="truncate">{att.filename}</span>
+                </a>
+              ))}
+            </div>
+            <p className="text-[10px] text-readable-subtle mt-1 px-1">Also visible in Team Chat for everyone.</p>
+          </div>
+        )}
       </div>
     </div>
   );

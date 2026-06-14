@@ -18,6 +18,7 @@ from app.core.startup_checks import run_startup_security_checks
 from app.api.v1.auth import router as auth_router
 from app.api.v1.calls import router as calls_router
 from app.api.v1.chat import router as chat_router
+from app.api.v1.files import router as files_router
 from app.api.v1.presence import router as presence_router
 from app.api.v1.sessions import router as sessions_router
 from app.api.v1.streaming import router as streaming_router
@@ -77,6 +78,7 @@ app.include_router(supervisor_router, prefix="/api/v1/supervisor", tags=["superv
 app.include_router(sync_router, prefix="/api/v1/sync", tags=["sync"])
 app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
 app.include_router(calls_router, prefix="/api/v1/calls", tags=["calls"])
+app.include_router(files_router, prefix="/api/v1/files", tags=["files"])
 app.include_router(presence_router, prefix="/api/v1/presence", tags=["presence"])
 
 

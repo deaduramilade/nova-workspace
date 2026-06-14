@@ -93,6 +93,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     UVICORN_WORKERS: int = 1
     MAX_REQUEST_BODY_BYTES: int = 1_048_576  # 1 MB
+    MAX_UPLOAD_SIZE_BYTES: int = 50 * 1024 * 1024  # 50 MB for file uploads (chat/workspace shares)
+    UPLOAD_DIR: str = "volumes/uploads"
     PRODUCTION_READINESS_STRICT: bool = True
 
     model_config = SettingsConfigDict(

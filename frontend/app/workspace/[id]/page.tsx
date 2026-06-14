@@ -21,6 +21,7 @@ import {
   TeamHoursMember,
   WorkingHoursStatus,
 } from '../../../lib/workspaceTypes';
+import { Attachment } from '../../../lib/chatTypes';
 import { presenceDotClass } from '../../../lib/presenceUtils';
 
 type SidebarTab = 'live' | 'hours' | 'neko' | 'supervisor' | 'people' | 'chat';
@@ -61,8 +62,10 @@ export default function WorkspacePage() {
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('live');
   const [sessionSeconds, setSessionSeconds] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [wsUploading, setWsUploading] = useState(false);
+  const wsFileInputRef = useRef<HTMLInputElement>(null);
 
-  const { setRoomId, openChat } = useChat();
+  const { setRoomId, openChat, sendAttachment: chatSendAttachment } = useChat();
   const { onlineUsers, connected: presenceConnected, myPresence } = usePresence();
   const { setActiveWorkspaceId, syncNow, syncStatus } = usePhase3();
 
@@ -176,6 +179,48 @@ export default function WorkspacePage() {
     if (session?.stream_url) window.open(session.stream_url, '_blank', 'noopener,noreferrer');
   };
 
+  const triggerWorkspaceUpload = () => {
+    if (!wsUploading) wsFileInputRef.current?.click();
+  };
+
+  const handleWorkspaceFileUpload = async (file: File) => {
+    if (!file || wsUploading) return;
+    setWsUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await axios.post(apiUrl('/files/upload'), form, {
+        headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' },
+      });
+      const data = res.data;
+      const att: Attachment = {
+        id: data.id,
+        filename: data.filename,
+        url: apiUrl(data.download_path),
+        size: data.size,
+        content_type: data.content_type,
+      };
+      const ok = chatSendAttachment ? chatSendAttachment(att, 'Uploaded to workspace', 'all') : false;
+      if (ok) {
+        setSidebarTab('chat');
+        openChat();
+        toast.success(`Shared ${data.filename}`);
+      } else {
+        toast.error('Uploaded but could not post to chat');
+      }
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Workspace file upload failed');
+    } finally {
+      setWsUploading(false);
+      if (wsFileInputRef.current) wsFileInputRef.current.value = '';
+    }
+  };
+
+  const onWsFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) handleWorkspaceFileUpload(f);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen text-readable flex flex-col items-center justify-center gap-6 p-8">
@@ -259,6 +304,15 @@ export default function WorkspacePage() {
               {myPresence.status_message || myPresence.status}
             </span>
           )}
+          <input ref={wsFileInputRef} type="file" className="hidden" onChange={onWsFileChange} disabled={wsUploading} />
+          <button
+            onClick={triggerWorkspaceUpload}
+            disabled={wsUploading}
+            className="workspace-tool-btn"
+            title="Upload file and share to this workspace (appears in workspace chat)"
+          >
+            {wsUploading ? '⏳' : '📤'}
+          </button>
           <button onClick={handleRefresh} className="workspace-tool-btn" title="Refresh">↻</button>
           <button onClick={handlePopOut} className="workspace-tool-btn hidden sm:flex" title="Open Neko">↗</button>
           <button onClick={handleFullscreen} className="workspace-tool-btn">{isFullscreen ? '⊡' : '⛶'}</button>
