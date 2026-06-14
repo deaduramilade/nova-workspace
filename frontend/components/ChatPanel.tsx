@@ -64,14 +64,25 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
     try {
       const form = new FormData();
       form.append('file', file);
+
+      // If we are in a workspace-scoped chat room, tag the file so it goes into that
+      // workspace's isolated storage (visible to the group only via the Files tab).
+      if (roomId && roomId.startsWith('workspace-')) {
+        const wsId = roomId.replace('workspace-', '');
+        form.append('workspace_id', wsId);
+      }
+
       const res = await axios.post(apiUrl('/files/upload'), form, {
         headers: { ...authHeaders(), 'Content-Type': 'multipart/form-data' },
       });
       const data = res.data;
+
+      // Prefer a workspace-scoped download path when present (better isolation signal).
+      const preferredPath = data.workspace_download_path || data.download_path;
       const attachment: Attachment = {
         id: data.id,
         filename: data.filename,
-        url: apiUrl(data.download_path),
+        url: apiUrl(preferredPath),
         size: data.size,
         content_type: data.content_type,
       };
@@ -229,22 +240,58 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
                         />
                       </a>
                     )}
-                    <a
-                      href={msg.attachment.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      download={msg.attachment.filename}
-                      className="mt-1.5 inline-flex items-center gap-2 text-xs rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 hover:bg-white/10 hover:border-sky-400/30 max-w-full"
-                      title={`Download ${msg.attachment.filename}`}
+                    <div
+                      className="group mt-1.5"
+                      onContextMenu={(e) => {
+                        // Quick right-click: force download for chat attachments
+                        e.preventDefault();
+                        const a = document.createElement('a');
+                        a.href = msg.attachment!.url;
+                        a.download = msg.attachment!.filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                      }}
                     >
-                      <span className="text-base leading-none">📎</span>
-                      <span className="truncate max-w-[220px]">{msg.attachment.filename}</span>
-                      {msg.attachment.size != null && (
-                        <span className="text-[10px] text-readable-subtle ml-1 shrink-0">
-                          {(msg.attachment.size / 1024).toFixed(msg.attachment.size > 1024 * 1024 ? 1 : 0)}k
-                        </span>
-                      )}
-                    </a>
+                      <a
+                        href={msg.attachment.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={msg.attachment.filename}
+                        className="inline-flex items-center gap-2 text-xs rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 hover:bg-white/10 hover:border-sky-400/30 max-w-full group-hover:border-sky-400/40"
+                        title="Left-click to open/download • Right-click to download • See Files tab for Copy link / Share"
+                      >
+                        <span className="text-base leading-none">📎</span>
+                        <span className="truncate max-w-[200px]">{msg.attachment.filename}</span>
+                        {msg.attachment.size != null && (
+                          <span className="text-[10px] text-readable-subtle ml-1 shrink-0">
+                            {(msg.attachment.size / 1024).toFixed(msg.attachment.size > 1024 * 1024 ? 1 : 0)}k
+                          </span>
+                        )}
+                      </a>
+                      {/* Hover hint actions for chat attachments */}
+                      <div className="hidden group-hover:flex gap-1 mt-0.5 text-[10px]">
+                        <a
+                          href={msg.attachment.url}
+                          download={msg.attachment.filename}
+                          className="px-1.5 py-0.5 rounded border border-white/10 hover:bg-white/10"
+                        >
+                          ⬇ Download
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(msg.attachment!.url).then(() => {
+                              // no toast here to avoid import noise in chat
+                            });
+                          }}
+                          className="px-1.5 py-0.5 rounded border border-white/10 hover:bg-white/10"
+                          title="Copy link (also available in the workspace Files tab)"
+                        >
+                          ⎘ Copy
+                        </button>
+                      </div>
+                    </div>
                   </>
                 )}
               </div>

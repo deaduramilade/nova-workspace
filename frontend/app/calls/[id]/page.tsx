@@ -68,7 +68,7 @@ export default function ActiveCallPage() {
       const att: Attachment = {
         id: data.id,
         filename: data.filename,
-        url: apiUrl(data.download_path),
+        url: apiUrl(data.workspace_download_path || data.download_path),
         size: data.size,
         content_type: data.content_type,
       };

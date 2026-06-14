@@ -32,6 +32,7 @@ def get_db():
 def init_db():
     from app.models.user import User
     from app.models.workspace import Workspace
+    from app.models.file import UploadedFile  # ensure table is created for file storage
     Base.metadata.create_all(bind=engine)
 
 

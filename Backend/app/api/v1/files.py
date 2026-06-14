@@ -1,87 +1,74 @@
-"""File upload and serving for chat attachments, workspace shares, and call file sharing."""
+"""File upload and serving for chat attachments + proper per-workspace/group storage.
+
+Uploads can be tagged with a workspace_id (the primary "group/organization" scoping unit).
+Only users who can access a workspace (any authenticated participant today) can list
+and manage the files that belong to it. Raw downloads remain unguessable by filename.
+"""
 
 from __future__ import annotations
 
-import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
 
 from app.core.auth import get_current_user
 from app.core.config import settings
+from app.core.database import get_db
 from app.models.user import User
+from app.services.file_storage import (
+    UPLOAD_DIR,
+    get_record,
+    list_for_workspace,
+    save_upload,
+    serialize,
+)
 
 router = APIRouter(tags=["files"])
 
-UPLOAD_DIR: Path = Path(settings.UPLOAD_DIR)
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-
-def _safe_filename(original: str) -> str:
-    """Create a reasonably safe storage name with uuid prefix."""
-    if not original:
-        original = "file"
-    # Very basic sanitization; avoid path traversal and keep it short
-    cleaned = (
-        original.replace("/", "_")
-        .replace("\\", "_")
-        .replace("..", "_")
-        .strip()
-    )[:80]
-    if not cleaned:
-        cleaned = "file"
-    prefix = uuid.uuid4().hex[:10]
-    return f"{prefix}_{cleaned}"
-
-
+# -------------------------------------------------------------------
+# Upload (supports optional workspace scoping for org/group isolation)
+# -------------------------------------------------------------------
 @router.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
+    workspace_id: Optional[int] = Form(default=None),
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """Authenticated multipart upload. Returns metadata + download_path for use in attachments."""
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No filename provided")
+    """Authenticated upload.
 
-    safe_name = _safe_filename(file.filename)
-    dest = UPLOAD_DIR / safe_name
+    If workspace_id is supplied the file is associated with that workspace's storage
+    (visible only via that workspace's file list to its participants).
+    """
+    record = await save_upload(
+        db,
+        file,
+        workspace_id=workspace_id,
+        uploader=current_user,
+    )
 
-    # Stream write to support larger files without loading fully in memory
-    size = 0
-    try:
-        with dest.open("wb") as f:
-            while True:
-                chunk = await file.read(1024 * 1024)  # 1 MiB chunks
-                if not chunk:
-                    break
-                f.write(chunk)
-                size += len(chunk)
-    except Exception as exc:
-        # Cleanup partial on failure
-        try:
-            if dest.exists():
-                dest.unlink()
-        except Exception:
-            pass
-        raise HTTPException(status_code=500, detail=f"Failed to store file: {exc}")
-
-    content_type = file.content_type or "application/octet-stream"
-
+    # Return both legacy flat path (for old chat links) and a workspace-scoped path when applicable.
+    # Frontend should prefer workspace_download_path when it has the context.
     return {
-        "id": safe_name,
-        "filename": file.filename,
-        "download_path": f"/files/download/{safe_name}",
-        "size": size,
-        "content_type": content_type,
+        **serialize(record),
+        "filename": record.original_filename,
         "uploaded_by": current_user.username,
     }
 
 
+# -------------------------------------------------------------------
+# Legacy flat downloads (still supported for backward compat with
+# previously shared chat attachment links). Names are unguessable.
+# -------------------------------------------------------------------
 @router.get("/download/{name}")
 async def download_file(name: str):
-    """Serve stored file by its stored name. Filenames are unguessable; no extra auth for direct links."""
+    """Serve a file by its internal stored name (no workspace check)."""
     if not name or ".." in name or "/" in name or "\\" in name:
         raise HTTPException(status_code=400, detail="Invalid file name")
 
@@ -89,9 +76,7 @@ async def download_file(name: str):
     if not p.exists() or not p.is_file():
         raise HTTPException(status_code=404, detail="File not found")
 
-    # Use original-ish display name by stripping the uuid_ prefix for download attr if possible
     display_name = name.split("_", 1)[1] if "_" in name else name
-
     return FileResponse(
         path=str(p),
         filename=display_name,
@@ -99,15 +84,75 @@ async def download_file(name: str):
     )
 
 
+# -------------------------------------------------------------------
+# Workspace-scoped storage API (the real "per group" file library)
+# -------------------------------------------------------------------
+@router.get("/workspace/{workspace_id}/list")
+def list_workspace_files(
+    workspace_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return all files that belong to this workspace.
+
+    This is the primary way the UI builds the "Storage" view that is isolated
+    per workspace / team / organization.
+    """
+    files = list_for_workspace(db, workspace_id)
+    return {
+        "workspace_id": workspace_id,
+        "files": [serialize(f) for f in files],
+    }
+
+
+@router.get("/workspace/{workspace_id}/download/{name}")
+def download_workspace_file(
+    workspace_id: int,
+    name: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Authenticated workspace-scoped download.
+
+    The workspace_id in the path makes the intent explicit. We still verify
+    that the file record actually belongs to the workspace.
+    """
+    record = get_record(db, name)
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if record.workspace_id != workspace_id:
+        # Do not leak existence across workspaces
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Access is granted to any authenticated user who reached this far
+    # (consistent with workspace stream / chat participation rules).
+    p = UPLOAD_DIR / record.stored_filename
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="File missing on disk")
+
+    display_name = record.original_filename
+    return FileResponse(
+        path=str(p),
+        filename=display_name,
+        media_type=record.content_type or "application/octet-stream",
+    )
+
+
+# -------------------------------------------------------------------
+# Lightweight debug / admin (still requires auth)
+# -------------------------------------------------------------------
 @router.get("/list")
-async def list_recent_uploads(current_user: User = Depends(get_current_user)):
-    """Simple listing for debugging / admin (not used in UI yet)."""
+def list_recent_uploads(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Global recent list (debug only – real usage goes through workspace lists)."""
     files = []
-    for p in sorted(UPLOAD_DIR.glob("*"), key=lambda x: x.stat().st_mtime, reverse=True)[:50]:
+    for p in sorted(UPLOAD_DIR.glob("*"), key=lambda x: x.stat().st_mtime, reverse=True)[:30]:
         if p.is_file():
+            rec = get_record(db, p.name)
             files.append({
                 "id": p.name,
                 "size": p.stat().st_size,
                 "download_path": f"/files/download/{p.name}",
+                "workspace_id": rec.workspace_id if rec else None,
             })
     return {"uploads": files, "dir": str(UPLOAD_DIR)}

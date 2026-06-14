@@ -10,6 +10,7 @@ import PresenceUserRow from '../../../components/PresenceUserRow';
 import WorkingHoursPanel from '../../../components/WorkingHoursPanel';
 import SupervisorLiveTools from '../../../components/SupervisorLiveTools';
 import WorkspaceLiveStatus from '../../../components/WorkspaceLiveStatus';
+import WorkspaceFilesPanel from '../../../components/WorkspaceFilesPanel';
 import { usePhase3 } from '../../../contexts/Phase3Context';
 import { useChat } from '../../../contexts/ChatContext';
 import { usePresence } from '../../../contexts/RealtimeContext';
@@ -24,7 +25,7 @@ import {
 import { Attachment } from '../../../lib/chatTypes';
 import { presenceDotClass } from '../../../lib/presenceUtils';
 
-type SidebarTab = 'live' | 'hours' | 'neko' | 'supervisor' | 'people' | 'chat';
+type SidebarTab = 'live' | 'hours' | 'neko' | 'supervisor' | 'people' | 'chat' | 'files';
 
 import { apiUrl, authHeaders as getAuthHeaders } from '../../../lib/api';
 
@@ -189,14 +190,17 @@ export default function WorkspacePage() {
     try {
       const form = new FormData();
       form.append('file', file);
+      form.append('workspace_id', workspaceId); // Explicitly scope to this workspace/group storage
       const res = await axios.post(apiUrl('/files/upload'), form, {
         headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' },
       });
       const data = res.data;
+
+      const preferredPath = data.workspace_download_path || data.download_path;
       const att: Attachment = {
         id: data.id,
         filename: data.filename,
-        url: apiUrl(data.download_path),
+        url: apiUrl(preferredPath),
         size: data.size,
         content_type: data.content_type,
       };
@@ -362,6 +366,7 @@ export default function WorkspacePage() {
                 ['supervisor', 'Super'],
                 ['people', 'Team'],
                 ['chat', 'Chat'],
+                ['files', 'Files'],
               ] as const).map(([tab, label]) => (
                 <button
                   key={tab}
@@ -412,6 +417,11 @@ export default function WorkspacePage() {
               {sidebarTab === 'chat' && (
                 <div className="flex-1 min-h-0 chat-embedded-wrapper">
                   <ChatPanel embedded />
+                </div>
+              )}
+              {sidebarTab === 'files' && (
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <WorkspaceFilesPanel workspaceId={Number(workspaceId)} />
                 </div>
               )}
             </div>
