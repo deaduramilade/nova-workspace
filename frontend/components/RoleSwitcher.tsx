@@ -2,8 +2,6 @@
 
 import React, { useState } from 'react';
 import { useRole } from '../contexts/RoleContext';
-import { apiUrl, authHeaders } from '../lib/api';
-import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const TEST_ROLES = ['user', 'supervisor', 'hr', 'lead', 'admin'];
@@ -15,6 +13,7 @@ export default function RoleSwitcher() {
     effectiveRole,
     setTestingRole,
     clearTestingRole,
+    submitRoleRequest,
     isTesting,
     refreshRole,
   } = useRole();
@@ -38,22 +37,17 @@ export default function RoleSwitcher() {
     }
 
     setRequesting(true);
-    try {
-      await axios.post(
-        apiUrl('/admin/me/request-role'),
-        { desired_role: testingRole },
-        { headers: authHeaders() }
-      );
+    const success = await submitRoleRequest(testingRole);
+    if (success) {
       toast.success(
         `Request to become ${testingRole.toUpperCase()} submitted. An administrator will review it.`
       );
-      // Optionally clear testing after request, or keep it for continued testing
-    } catch (e: any) {
-      const detail = e?.response?.data?.detail || 'Failed to submit request';
-      toast.error(detail);
-    } finally {
-      setRequesting(false);
+      // Keep testing mode active so user can continue previewing while waiting for approval.
+      // Admin will see it in the dashboard.
+    } else {
+      toast.error('Failed to submit role change request. Please try again or contact an admin.');
     }
+    setRequesting(false);
   };
 
   return (

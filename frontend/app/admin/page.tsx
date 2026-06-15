@@ -339,14 +339,28 @@ export default function AdministratorDashboard() {
           <div className="ml-auto text-xs text-readable-subtle">{filteredUsers.length} / {users.length} users</div>
         </div>
 
-        {/* Pending Role Change Requests (from users using the Testing Role Switcher) */}
-        {roleRequests.length > 0 && (
-          <section className="glass rounded-2xl p-5 border border-amber-400/20">
-            <div className="flex items-center gap-2 mb-3">
+        {/* Role Change Requests Management (from Testing Role Switcher) */}
+        <section className="glass rounded-2xl p-5 border border-amber-400/20">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
               <span className="text-amber-400">🔔</span>
               <h3 className="font-semibold">Pending Role Change Requests</h3>
-              <span className="text-xs text-amber-300/70">(from Testing Role Switcher - not permanent until approved)</span>
+              <span className="text-xs text-amber-300/70">(submitted via Role Switcher — not permanent until approved here)</span>
             </div>
+            <button
+              onClick={fetchRoleRequests}
+              disabled={loadingRequests}
+              className="text-xs glass px-3 py-1 rounded-lg"
+            >
+              {loadingRequests ? 'Loading...' : 'Refresh Requests'}
+            </button>
+          </div>
+
+          {loadingRequests ? (
+            <div className="text-center py-4 text-readable-subtle">Loading requests...</div>
+          ) : roleRequests.length === 0 ? (
+            <div className="text-sm text-readable-subtle py-2">No pending role change requests.</div>
+          ) : (
             <div className="space-y-2">
               {roleRequests.map((req: any) => (
                 <div key={req.id} className="flex flex-wrap items-center justify-between gap-3 bg-white/5 rounded-xl px-4 py-3 text-sm">
@@ -362,7 +376,7 @@ export default function AdministratorDashboard() {
                       onClick={() => handleApproveRequest(req.id)}
                       className="px-3 py-1 text-xs rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300"
                     >
-                      Approve
+                      Approve &amp; Apply
                     </button>
                     <button
                       onClick={() => handleRejectRequest(req.id)}
@@ -374,8 +388,11 @@ export default function AdministratorDashboard() {
                 </div>
               ))}
             </div>
-          </section>
-        )}
+          )}
+          <p className="text-[10px] text-readable-subtle mt-3">
+            Approving will permanently update the user's role in the database. The user will see the change after refreshing their role (or logging in again).
+          </p>
+        </section>
 
         {/* User Management Table */}
         <div className="glass rounded-2xl overflow-hidden border border-white/10">

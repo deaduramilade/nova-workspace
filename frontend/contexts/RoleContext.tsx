@@ -16,6 +16,7 @@ interface RoleContextValue {
   realIsSupervisor: boolean;
   setTestingRole: (role: string) => void;
   clearTestingRole: () => void;
+  submitRoleRequest: (desiredRole: string) => Promise<boolean>;
   refreshRole: () => Promise<void>;
   loading: boolean;
   isTesting: boolean;
@@ -73,6 +74,26 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('testing_role');
     } catch {}
   };
+
+  const submitRoleRequest = useCallback(async (desiredRole: string): Promise<boolean> => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      return false;
+    }
+    try {
+      await axios.post(
+        apiUrl('/admin/me/request-role'),
+        { desired_role: desiredRole.toLowerCase() },
+        { headers: getAuthHeaders() }
+      );
+      // After submitting, we can optionally refresh to see if it affects anything,
+      // but since it's pending, realRole stays the same.
+      return true;
+    } catch (e: any) {
+      console.error('Role request failed', e);
+      return false;
+    }
+  }, []);
 
   const refreshRole = useCallback(async () => {
     const token = localStorage.getItem('access_token');
@@ -148,6 +169,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     realIsSupervisor,
     setTestingRole,
     clearTestingRole,
+    submitRoleRequest,
     refreshRole,
     loading,
     isTesting,
