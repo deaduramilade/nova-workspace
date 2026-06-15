@@ -59,12 +59,19 @@ export default function WorkspacePage() {
   const [error, setError] = useState('');
   const [streamReady, setStreamReady] = useState(false);
   const [streamError, setStreamError] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Start with sidebar open on desktop, closed on mobile so the remote desktop view is front and center
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 768;
+    }
+    return true;
+  });
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('live');
   const [sessionSeconds, setSessionSeconds] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [wsUploading, setWsUploading] = useState(false);
   const wsFileInputRef = useRef<HTMLInputElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   const { setRoomId, openChat, sendAttachment: chatSendAttachment } = useChat();
   const { onlineUsers, connected: presenceConnected, myPresence } = usePresence();
@@ -147,6 +154,28 @@ export default function WorkspacePage() {
     const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  // Mobile detection + smart default for sidebar (keep the desktop/Neko view clean on phones)
+  useEffect(() => {
+    const updateMobile = () => {
+      const mobile = typeof window !== 'undefined' && window.innerWidth < 768;
+      setIsMobile(mobile);
+      // On phones we prefer the full remote desktop view by default.
+      // User can tap the sidebar toggle (⟨⟩) to open tools/chat/files.
+      if (mobile) {
+        setSidebarOpen(false);
+      }
+    };
+
+    updateMobile();
+    window.addEventListener('resize', updateMobile);
+    window.addEventListener('orientationchange', updateMobile);
+
+    return () => {
+      window.removeEventListener('resize', updateMobile);
+      window.removeEventListener('orientationchange', updateMobile);
+    };
   }, []);
 
   useEffect(() => {
@@ -320,7 +349,13 @@ export default function WorkspacePage() {
           <button onClick={handleRefresh} className="workspace-tool-btn" title="Refresh">↻</button>
           <button onClick={handlePopOut} className="workspace-tool-btn hidden sm:flex" title="Open Neko">↗</button>
           <button onClick={handleFullscreen} className="workspace-tool-btn">{isFullscreen ? '⊡' : '⛶'}</button>
-          <button onClick={() => setSidebarOpen((o) => !o)} className="workspace-tool-btn">{sidebarOpen ? '⟩' : '⟨'}</button>
+          <button 
+            onClick={() => setSidebarOpen((o) => !o)} 
+            className="workspace-tool-btn"
+            aria-label={sidebarOpen ? "Close tools and focus desktop" : "Open workspace tools, chat and files"}
+          >
+            {sidebarOpen ? '⟩' : '⟨'}
+          </button>
         </div>
       </header>
 
@@ -356,6 +391,15 @@ export default function WorkspacePage() {
           />
         </div>
 
+        {/* Mobile backdrop so the user can tap the desktop view to dismiss the tools drawer and keep focus on the remote desktop */}
+        {sidebarOpen && isMobile && (
+          <div
+            className="workspace-mobile-drawer-backdrop"
+            onClick={() => setSidebarOpen(false)}
+            aria-hidden
+          />
+        )}
+
         {sidebarOpen && (
           <aside className="workspace-stream-sidebar glass-dark border-l border-white/10 flex flex-col shrink-0">
             <div className="flex border-b border-white/10 overflow-x-auto">
@@ -370,7 +414,11 @@ export default function WorkspacePage() {
               ] as const).map(([tab, label]) => (
                 <button
                   key={tab}
-                  onClick={() => { setSidebarTab(tab); if (tab === 'chat') openChat(); }}
+                  onClick={() => {
+                    setSidebarTab(tab);
+                    if (!sidebarOpen) setSidebarOpen(true);
+                    if (tab === 'chat') openChat();
+                  }}
                   className={`flex-1 min-w-[52px] py-3 text-[10px] font-medium whitespace-nowrap ${
                     sidebarTab === tab ? 'text-sky-300 border-b-2 border-sky-400' : 'text-readable-subtle'
                   }`}

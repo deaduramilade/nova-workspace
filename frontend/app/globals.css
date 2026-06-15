@@ -260,13 +260,21 @@ body {
 
 .chat-floating-root {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 55;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  right: calc(16px + env(safe-area-inset-right));
+  z-index: 65;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 12px;
+  gap: 10px;
+}
+
+/* Mobile FAB stacking - call usually sits a bit higher than chat */
+@media (max-width: 768px) {
+  .chat-floating-root {
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    right: 14px;
+  }
 }
 
 .chat-fab {
@@ -351,16 +359,32 @@ body {
   animation: chat-panel-in 0.25s ease;
 }
 
+/* Mobile: floating chat becomes a nice bottom sheet / compact panel */
+@media (max-width: 768px) {
+  .chat-panel {
+    width: calc(100% - 24px);
+    max-width: 420px;
+    height: min(460px, 78dvh);
+    border-radius: 18px 18px 8px 8px;
+    /* Positioned by the floating root */
+  }
+
+  .chat-panel-input input {
+    font-size: 16px; /* prevent iOS Safari auto-zoom on focus */
+  }
+}
+
 .chat-panel-embedded {
   width: 100%;
-  height: 420px;
+  height: 100%;
+  min-height: 320px;
   border-radius: 0;
   box-shadow: none;
   animation: none;
 }
 
 .chat-embedded-wrapper {
-  min-height: 420px;
+  min-height: 320px;
 }
 
 @keyframes chat-panel-in {
@@ -424,32 +448,41 @@ body {
 
 /* Workspace streaming */
 .workspace-stream-page {
-  height: 100vh;
+  height: 100dvh; /* dynamic viewport for mobile address bars */
   overflow: hidden;
   background: var(--nova-bg);
+  /* support notched phones */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 .workspace-stream-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 16px;
-  height: 56px;
+  gap: 8px;
+  padding: 8px 12px;
+  padding-top: calc(8px + env(safe-area-inset-top));
+  min-height: 52px;
 }
 
 .workspace-stream-body {
-  height: calc(100vh - 56px);
+  height: calc(100dvh - 52px);
+  /* On mobile we keep the stream dominant; sidebar becomes overlay */
 }
 
 .workspace-stream-viewport {
   background: #030712;
   min-height: 0;
+  /* Ensure the remote desktop view stays the star on phones */
+  touch-action: manipulation;
 }
 
 .workspace-stream-iframe {
   display: block;
   background: #030712;
+  /* Let the remote desktop (Neko) receive all touches */
+  touch-action: none; /* Neko/WebRTC handles its own gestures */
 }
 
 .workspace-stream-sidebar {
@@ -469,22 +502,36 @@ body {
 }
 
 .workspace-tool-btn {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 15px;
   background: rgba(30, 41, 59, 0.6);
   border: 1px solid rgba(148, 163, 184, 0.12);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
+  touch-action: manipulation;
 }
 
 .workspace-tool-btn:hover {
   background: rgba(51, 65, 85, 0.8);
   border-color: rgba(56, 189, 248, 0.3);
+}
+
+/* Larger touch targets on phones */
+@media (max-width: 768px) {
+  .workspace-tool-btn {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    font-size: 16px;
+  }
 }
 
 .workspace-connect-steps {
@@ -528,14 +575,75 @@ body {
 }
 
 @media (max-width: 768px) {
+  .workspace-stream-toolbar {
+    padding: 6px 10px;
+    min-height: 48px;
+  }
+
+  .workspace-stream-body {
+    height: calc(100dvh - 48px);
+  }
+
   .workspace-stream-sidebar {
-    position: absolute;
+    position: fixed;
     right: 0;
-    top: 56px;
+    top: 48px;
     bottom: 0;
-    z-index: 30;
-    width: min(100%, 320px);
-    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
+    z-index: 60;
+    width: min(88%, 320px);
+    max-width: 320px;
+    box-shadow: -12px 0 40px rgba(0, 0, 0, 0.55);
+    border-radius: 16px 0 0 0;
+    overflow: hidden;
+    /* Leave a sliver of the remote desktop visible so user keeps the "desktop view" context */
+  }
+
+  /* Backdrop for the drawer so tapping the desktop view closes the tools */
+  .workspace-mobile-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 55;
+    backdrop-filter: blur(2px);
+  }
+
+  /* Make tab buttons in the drawer larger for thumbs */
+  .workspace-stream-sidebar .flex.border-b button {
+    min-height: 44px;
+    font-size: 11px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  /* Keep the remote desktop view large and usable */
+  .workspace-stream-viewport {
+    min-height: 100%;
+  }
+}
+
+/* Even tighter phones / landscape phones */
+@media (max-width: 420px) {
+  .workspace-stream-toolbar {
+    gap: 4px;
+  }
+  .workspace-tool-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+}
+
+/* Landscape phone — give the desktop view even more real estate */
+@media (max-height: 500px) and (orientation: landscape) {
+  .workspace-stream-page {
+    height: 100dvh;
+  }
+  .workspace-stream-body {
+    height: calc(100dvh - 44px);
+  }
+  .workspace-stream-toolbar {
+    min-height: 44px;
+    padding: 4px 10px;
   }
 }
 
@@ -662,9 +770,16 @@ body {
 
 .call-floating-root {
   position: fixed;
-  bottom: 92px;
-  right: 24px;
-  z-index: 60;
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  right: calc(16px + env(safe-area-inset-right));
+  z-index: 64;
+}
+
+@media (max-width: 768px) {
+  .call-floating-root {
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    right: 14px;
+  }
 }
 
 .call-fab {
@@ -762,5 +877,46 @@ body {
   .glass-dark,
   .glass-card {
     background: rgba(15, 23, 42, 0.95);
+  }
+}
+
+/* Mobile browser optimizations */
+@media (max-width: 768px) {
+  /* Stop iOS from auto-zooming inputs */
+  input[type="text"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="email"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* Ensure big enough tap targets everywhere */
+  button, .workspace-tool-btn, a[role="button"] {
+    min-height: 42px;
+    min-width: 42px;
+  }
+
+  .chat-panel-input {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Landscape phones — maximize the remote desktop view */
+@media (max-height: 480px) {
+  .workspace-stream-iframe {
+    /* Neko desktop benefits from every pixel in landscape */
+    image-rendering: crisp-edges;
+  }
+}
+
+/* Workspace Files panel — thumb friendly rows on phones */
+@media (max-width: 768px) {
+  .workspace-files-row {
+    min-height: 56px;
+    padding-top: 10px;
+    padding-bottom: 10px;
   }
 }

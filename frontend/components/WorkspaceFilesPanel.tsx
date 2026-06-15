@@ -226,7 +226,7 @@ export default function WorkspaceFilesPanel({ workspaceId }: WorkspaceFilesPanel
     return (
       <div
         key={file.id}
-        className="group relative flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 hover:border-sky-400/30 transition-colors cursor-default"
+        className="group relative flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 hover:border-sky-400/30 transition-colors cursor-default workspace-files-row"
         onContextMenu={(e) => handleContextMenu(e, file)}
         title={file.original_filename}
       >

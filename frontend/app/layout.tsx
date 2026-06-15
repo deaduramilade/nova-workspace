@@ -14,6 +14,17 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.ico" },
 };
 
+// Strong mobile + desktop-on-phone support.
+// The main "desktop view" (Neko remote Firefox) benefits from good scaling + pinch on phones.
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: 'yes',
+  viewportFit: 'cover',
+  themeColor: '#050810',
+};
+
 export default function RootLayout({
   children,
 }: {
