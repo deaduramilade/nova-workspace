@@ -6,6 +6,7 @@ import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import PageNav from '../../components/PageNav';
 import { usePhase3 } from '../../contexts/Phase3Context';
+import { useRole } from '../../contexts/RoleContext';
 import { apiUrl, authHeaders } from '../../lib/api';
 
 interface WorkLog {
@@ -132,8 +133,9 @@ export default function HRWorkspacePage() {
     setSelectedEmployee(null);
   };
 
-  // Role gate
-  if (!isHR) {
+  // Role gate — use real HR status so testing switcher doesn't bypass real access control on sensitive pages
+  const { realIsHR } = useRole();
+  if (!realIsHR) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="glass p-10 rounded-3xl text-center max-w-md">

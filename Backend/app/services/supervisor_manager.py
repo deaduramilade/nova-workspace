@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
+from app.core.auth import is_supervisor, SUPERVISOR_ROLES, HR_ROLES
 from app.services.crdt_store import crdt_store
 from app.services.presence_manager import presence_manager
 from app.services.workspace_hours import get_team_hours, _sessions
@@ -13,8 +14,6 @@ from app.services.workspace_live_status import get_live_status
 from app.services.neko_service import check_neko_health
 
 
-SUPERVISOR_ROLES = ("supervisor", "admin", "lead")
-HR_ROLES = ("hr", "admin")
 FEEDBACK_TYPES = ("nudge", "praise", "flag", "broadcast", "check_in")
 
 _feedback_log: list[dict] = []
@@ -24,8 +23,8 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def is_supervisor(role: str) -> bool:
-    return role.lower() in SUPERVISOR_ROLES
+# is_supervisor, is_hr, etc. are now imported from app.core.auth for consistency
+# (kept here for any legacy direct calls, but prefer the ones from core.auth)
 
 
 def is_hr(role: str) -> bool:
@@ -168,3 +167,6 @@ def mark_feedback_read(feedback_id: str, username: str) -> Optional[dict]:
 
 supervisor_manager_roles = SUPERVISOR_ROLES
 hr_roles = HR_ROLES
+
+# Re-export for convenience
+from app.core.auth import is_supervisor, is_hr, is_admin  # noqa: F401

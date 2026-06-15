@@ -2,14 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional
 
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, require_supervisor, is_supervisor
 from app.models.user import User
 from app.services.supervisor_manager import (
     FEEDBACK_TYPES,
     get_overview,
     get_recent_feedback,
     get_workspace_oversight,
-    is_supervisor,
     mark_feedback_read,
     send_feedback,
 )
@@ -42,7 +41,7 @@ def workspace_live_oversight(workspace_id: int, current_user: User = Depends(get
 
 
 @router.post("/feedback")
-async def post_feedback(body: FeedbackRequest, current_user: User = Depends(get_current_user)):
+async def post_feedback(body: FeedbackRequest, current_user: User = require_supervisor()):
     entry = await send_feedback(
         supervisor=current_user.username,
         supervisor_role=current_user.role,

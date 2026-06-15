@@ -5,12 +5,20 @@ import axios from 'axios';
 import { apiUrl, authHeaders as getAuthHeaders } from '../lib/api';
 
 interface RoleContextValue {
-  currentRole: string;
+  realRole: string;           // The actual role from the database
+  testingRole: string | null; // Temporary role for testing (not persisted to DB)
+  effectiveRole: string;      // testingRole || realRole
   isAdmin: boolean;
   isHR: boolean;
   isSupervisor: boolean;
+  realIsAdmin: boolean;
+  realIsHR: boolean;
+  realIsSupervisor: boolean;
+  setTestingRole: (role: string) => void;
+  clearTestingRole: () => void;
   refreshRole: () => Promise<void>;
   loading: boolean;
+  isTesting: boolean;
 }
 
 const RoleContext = createContext<RoleContextValue | null>(null);
@@ -29,17 +37,48 @@ function getUserRoleFromStorage(): string {
 }
 
 export function RoleProvider({ children }: { children: React.ReactNode }) {
-  const [currentRole, setCurrentRole] = useState<string>(getUserRoleFromStorage());
+  const [realRole, setRealRole] = useState<string>(getUserRoleFromStorage());
+  const [testingRole, setTestingRoleState] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('testing_role') || null;
+    } catch {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
 
-  const isAdmin = currentRole === 'admin';
-  const isHR = ['hr', 'admin'].includes(currentRole);
-  const isSupervisor = ['supervisor', 'admin', 'lead'].includes(currentRole);
+  const effectiveRole = testingRole || realRole;
+
+  const isAdmin = effectiveRole === 'admin';
+  const isHR = ['hr', 'admin'].includes(effectiveRole);
+  const isSupervisor = ['supervisor', 'admin', 'lead'].includes(effectiveRole);
+
+  const realIsAdmin = realRole === 'admin';
+  const realIsHR = ['hr', 'admin'].includes(realRole);
+  const realIsSupervisor = ['supervisor', 'admin', 'lead'].includes(realRole);
+
+  const isTesting = !!testingRole;
+
+  const setTestingRole = (role: string) => {
+    const normalized = role.toLowerCase();
+    setTestingRoleState(normalized);
+    try {
+      localStorage.setItem('testing_role', normalized);
+    } catch {}
+  };
+
+  const clearTestingRole = () => {
+    setTestingRoleState(null);
+    try {
+      localStorage.removeItem('testing_role');
+    } catch {}
+  };
 
   const refreshRole = useCallback(async () => {
     const token = localStorage.getItem('access_token');
     if (!token) {
-      setCurrentRole('user');
+      setRealRole('user');
+      clearTestingRole(); // clear testing on logout
       setLoading(false);
       return;
     }
@@ -62,11 +101,11 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           }
         }
         localStorage.setItem('nova_user', JSON.stringify(merged));
-        setCurrentRole(res.data.role ?? 'user');
+        setRealRole(res.data.role ?? 'user');
       }
     } catch {
       // Fall back to whatever is in storage
-      setCurrentRole(getUserRoleFromStorage());
+      setRealRole(getUserRoleFromStorage());
     } finally {
       setLoading(false);
     }
@@ -75,7 +114,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   // Initial load + sync role from storage
   useEffect(() => {
     const syncFromStorage = () => {
-      setCurrentRole(getUserRoleFromStorage());
+      setRealRole(getUserRoleFromStorage());
     };
 
     syncFromStorage();
@@ -86,6 +125,11 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       if (e.key === 'nova_user' || e.key === 'access_token') {
         syncFromStorage();
       }
+      if (e.key === 'testing_role') {
+        try {
+          setTestingRoleState(localStorage.getItem('testing_role') || null);
+        } catch {}
+      }
     };
     window.addEventListener('storage', onStorage);
 
@@ -93,12 +137,20 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   }, [refreshRole]);
 
   const value: RoleContextValue = {
-    currentRole,
+    realRole,
+    testingRole,
+    effectiveRole,
     isAdmin,
     isHR,
     isSupervisor,
+    realIsAdmin,
+    realIsHR,
+    realIsSupervisor,
+    setTestingRole,
+    clearTestingRole,
     refreshRole,
     loading,
+    isTesting,
   };
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;

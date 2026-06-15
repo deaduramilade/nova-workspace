@@ -10,6 +10,7 @@ import PresenceUserRow from '../components/PresenceUserRow';
 import { usePhase3 } from '../contexts/Phase3Context';
 import { usePresence } from '../contexts/RealtimeContext';
 import { useRole } from '../contexts/RoleContext';
+import RoleSwitcher from '../components/RoleSwitcher';
 import SupervisorLiveTools from '../components/SupervisorLiveTools';
 import { apiUrl, authHeaders } from '../lib/api';
 import { getBreakoutRooms } from '../lib/breakoutRooms';
@@ -61,7 +62,8 @@ export default function NovaDashboard() {
   const router = useRouter();
   const { onlineUsers, offlineUsers, connected, networkOnline } = usePresence();
   const { overview, syncStatus } = usePhase3();
-const { isHR, isAdmin, isSupervisor, currentRole } = useRole();
+const { isHR, isAdmin, isSupervisor, effectiveRole, realRole, clearTestingRole, isTesting } = useRole();
+  const currentRole = effectiveRole; // for backward display in this file
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBreakTimer, setShowBreakTimer] = useState(false);
@@ -170,6 +172,8 @@ const { isHR, isAdmin, isSupervisor, currentRole } = useRole();
                 Settings
               </Link>
 
+              <RoleSwitcher />
+
               {/* Role-based navigation links - only visible to authorized users */}
               {isHR && (
                 <Link href="/hr" className="glass px-4 py-2 rounded-xl text-xs font-medium hidden sm:block hover:bg-white/10 transition-colors text-emerald-300">
@@ -201,7 +205,15 @@ const { isHR, isAdmin, isSupervisor, currentRole } = useRole();
                       }
                     })()}
                   </div>
-                  <div className="text-xs text-readable-subtle capitalize">{currentRole} · Settings</div>
+                  <div className="text-xs text-readable-subtle capitalize">
+                    {isTesting ? (
+                      <>
+                        testing as <span className="text-amber-400">{effectiveRole}</span> (real: {realRole})
+                      </>
+                    ) : (
+                      `${currentRole} · Settings`
+                    )}
+                  </div>
                 </div>
                 <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-purple-500 rounded-full flex items-center justify-center font-semibold text-sm ring-2 ring-white/10 overflow-hidden">
                   {(() => {
@@ -223,6 +235,33 @@ const { isHR, isAdmin, isSupervisor, currentRole } = useRole();
           </div>
         </div>
       </nav>
+
+      {/* Testing Role Banner - only visible when using the temporary Role Switcher */}
+      {isTesting && (
+        <div className="fixed top-[61px] left-0 right-0 z-[55] bg-amber-500/10 border-b border-amber-400/30 backdrop-blur">
+          <div className="max-w-7xl mx-auto px-6 lg:px-8 py-2 flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2 text-amber-300">
+              <span>🧪</span>
+              <span>
+                <strong>Testing Mode:</strong> You are viewing the UI as{' '}
+                <span className="font-semibold capitalize">{effectiveRole}</span>. Your real role is{' '}
+                <span className="font-semibold capitalize">{realRole}</span>.
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={clearTestingRole}
+                className="text-xs px-3 py-1 rounded-lg border border-amber-400/30 hover:bg-amber-500/10"
+              >
+                Exit Testing
+              </button>
+              <span className="text-[10px] text-amber-400/70 hidden md:inline">
+                Role changes here are temporary and not saved to the database.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="pt-20 pb-12 px-6 lg:px-8 max-w-7xl mx-auto lg:mr-80">
         <header className="mb-10">

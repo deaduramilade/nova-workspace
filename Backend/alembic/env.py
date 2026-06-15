@@ -34,6 +34,7 @@ from app.core.database import Base
 from app.models.user import User  # noqa: F401
 from app.models.workspace import Workspace  # noqa: F401
 from app.models.file import UploadedFile  # noqa: F401
+from app.models.role_request import RoleChangeRequest  # noqa: F401
 
 # Planned / future models (see backend-api-plan.md and charter AI agent support).
 # Uncomment and add when the corresponding model files define tables:

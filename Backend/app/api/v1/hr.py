@@ -3,13 +3,10 @@
 Protected: only HR role (hr, admin) can access.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
-from typing import Optional
+from fastapi import APIRouter, Depends, Query
 
-from app.core.auth import get_current_user
+from app.core.auth import require_hr, get_current_user
 from app.models.user import User
-from app.services.supervisor_manager import is_hr
 from app.services.workspace_hours import (
     get_employee_work_logs,
     approve_employee_hours,
@@ -25,14 +22,8 @@ class ApproveRequest(BaseModel):
     approve: bool = True
 
 
-def _ensure_hr(user: User):
-    if not is_hr(user.role):
-        raise HTTPException(status_code=403, detail="HR access required")
-
-
 @router.get("/overview")
-def hr_overview(current_user: User = Depends(get_current_user)):
-    _ensure_hr(current_user)
+def hr_overview(current_user: User = require_hr()):
     overview = get_hr_overview()
     overview["role"] = current_user.role
     return overview
@@ -44,9 +35,8 @@ def list_employee_hours(
     date_to: Optional[str] = Query(None, description="YYYY-MM-DD or ISO"),
     employee: Optional[str] = Query(None, description="Filter by username"),
     approved: Optional[bool] = Query(None, description="true=approved only, false=pending only"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = require_hr(),
 ):
-    _ensure_hr(current_user)
     pending_only = approved is False
     approved_only = approved is True
     logs = get_employee_work_logs(
@@ -88,9 +78,8 @@ def get_work_logs(
     date_to: Optional[str] = Query(None),
     employee: Optional[str] = Query(None),
     approved: Optional[bool] = Query(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = require_hr(),
 ):
-    _ensure_hr(current_user)
     pending_only = approved is False
     approved_only = approved is True
     logs = get_employee_work_logs(
@@ -110,9 +99,8 @@ def get_work_logs(
 @router.post("/approve")
 def approve_hours(
     body: ApproveRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = require_hr(),
 ):
-    _ensure_hr(current_user)
     result = approve_employee_hours(
         username=body.username,
         date=body.date,
@@ -123,8 +111,10 @@ def approve_hours(
 
 
 @router.get("/tools")
-def hr_tools(current_user: User = Depends(get_current_user)):
-    _ensure_hr(current_user)
+def hr_tools(current_user: User = require_hr()):
+    # Note: the old _ensure_hr and is_hr imports were removed in favor of
+    # the centralized RBAC dependency `require_hr()` which always verifies
+    # the role against the live database record.
     return {
         "is_hr": True,
         "role": current_user.role,

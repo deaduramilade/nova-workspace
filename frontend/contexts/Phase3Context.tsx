@@ -20,7 +20,7 @@ interface Phase3ContextValue {
   isSupervisor: boolean;
   isHR: boolean;
   isAdmin: boolean;
-  currentRole: string;
+  currentRole: string; // effective role for convenience
   recentFeedback: SupervisorFeedback[];
   incomingFeedback: SupervisorFeedback[];
   crdtState: CRDTState | null;
@@ -56,7 +56,8 @@ export function Phase3Provider({ children }: { children: React.ReactNode }) {
   const engineRef = useRef<SyncEngine | null>(null);
 
   // Delegate role information to the dedicated global RoleProvider for consistency
-  const { currentRole, isAdmin, isHR, isSupervisor } = useRole();
+  const { effectiveRole, realRole, isAdmin, isHR, isSupervisor, isTesting } = useRole();
+  const currentRole = effectiveRole; // backward compat + for Phase3 consumers
 
   useEffect(() => {
     engineRef.current = new SyncEngine(activeWorkspaceId);
@@ -172,7 +173,7 @@ export function Phase3Provider({ children }: { children: React.ReactNode }) {
     isSupervisor,
     isHR,
     isAdmin,
-    currentRole,
+    currentRole: effectiveRole || currentRole, // prefer effective from RoleContext
     recentFeedback,
     incomingFeedback,
     crdtState,
@@ -187,7 +188,7 @@ export function Phase3Provider({ children }: { children: React.ReactNode }) {
     setLocalField,
     handleSupervisorEvent,
   }), [
-    overview, feedbackTools, isSupervisor, isHR, isAdmin, currentRole, recentFeedback, incomingFeedback,
+    overview, feedbackTools, isSupervisor, isHR, isAdmin, recentFeedback, incomingFeedback,
     crdtState, syncStatus, activeWorkspaceId, sendFeedback, dismissFeedback,
     markFeedbackRead, refreshOverview, syncNow, setLocalField, handleSupervisorEvent,
   ]);

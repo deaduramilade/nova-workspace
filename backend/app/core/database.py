@@ -33,6 +33,7 @@ def init_db():
     from app.models.user import User
     from app.models.workspace import Workspace
     from app.models.file import UploadedFile  # ensure table is created for file storage
+    from app.models.role_request import RoleChangeRequest
     Base.metadata.create_all(bind=engine)
 
 

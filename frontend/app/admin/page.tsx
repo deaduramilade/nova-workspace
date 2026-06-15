@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import PageNav from '../../components/PageNav';
-import { usePhase3 } from '../../contexts/Phase3Context';
+import { useRole } from '../../contexts/RoleContext';
 import { apiUrl, authHeaders } from '../../lib/api';
 
 interface ManagedUser {
@@ -25,7 +25,7 @@ const ROLE_OPTIONS = ['user', 'supervisor', 'hr', 'lead', 'admin'];
 
 export default function AdministratorDashboard() {
   const router = useRouter();
-  const { isAdmin } = usePhase3();
+  const { realIsAdmin, refreshRole } = useRole();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -41,6 +41,46 @@ export default function AdministratorDashboard() {
     role: 'user',
   });
   const [creating, setCreating] = useState(false);
+
+  // Role change requests (from testing switcher)
+  const [roleRequests, setRoleRequests] = useState<any[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+
+  const fetchRoleRequests = async () => {
+    setLoadingRequests(true);
+    try {
+      const res = await axios.get(apiUrl('/admin/role-requests'), { headers: authHeaders() });
+      setRoleRequests(res.data.requests || []);
+    } catch (e: any) {
+      if (e?.response?.status !== 403) {
+        toast.error('Failed to load role requests');
+      }
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  const handleApproveRequest = async (id: number) => {
+    try {
+      await axios.post(apiUrl(`/admin/role-requests/${id}/approve`), {}, { headers: authHeaders() });
+      toast.success('Role request approved. User role updated.');
+      fetchRoleRequests();
+      fetchUsers();
+      refreshRole(); // in case the admin is viewing as someone else
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Failed to approve');
+    }
+  };
+
+  const handleRejectRequest = async (id: number) => {
+    try {
+      await axios.post(apiUrl(`/admin/role-requests/${id}/reject`), {}, { headers: authHeaders() });
+      toast.success('Request rejected.');
+      fetchRoleRequests();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Failed to reject');
+    }
+  };
 
   const fetchUsers = async () => {
     const token = localStorage.getItem('access_token');
@@ -66,11 +106,12 @@ export default function AdministratorDashboard() {
 
   useEffect(() => {
     fetchUsers();
+    fetchRoleRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Role gate
-  if (!isAdmin) {
+  // Role gate — use *real* admin status for the actual admin page (testing switcher shouldn't grant real admin access)
+  if (!realIsAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="glass p-10 rounded-3xl text-center max-w-md">
@@ -297,6 +338,44 @@ export default function AdministratorDashboard() {
           <button onClick={fetchUsers} className="glass px-4 py-2 rounded-2xl text-sm">Refresh</button>
           <div className="ml-auto text-xs text-readable-subtle">{filteredUsers.length} / {users.length} users</div>
         </div>
+
+        {/* Pending Role Change Requests (from users using the Testing Role Switcher) */}
+        {roleRequests.length > 0 && (
+          <section className="glass rounded-2xl p-5 border border-amber-400/20">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-amber-400">🔔</span>
+              <h3 className="font-semibold">Pending Role Change Requests</h3>
+              <span className="text-xs text-amber-300/70">(from Testing Role Switcher - not permanent until approved)</span>
+            </div>
+            <div className="space-y-2">
+              {roleRequests.map((req: any) => (
+                <div key={req.id} className="flex flex-wrap items-center justify-between gap-3 bg-white/5 rounded-xl px-4 py-3 text-sm">
+                  <div>
+                    <span className="font-medium">{req.username}</span> <span className="text-readable-subtle">({req.email})</span>
+                    <div className="text-xs text-readable-muted mt-0.5">
+                      Current: <span className="capitalize">{req.current_role}</span> → Requested:{' '}
+                      <span className="capitalize font-medium text-amber-300">{req.requested_role}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleApproveRequest(req.id)}
+                      className="px-3 py-1 text-xs rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleRejectRequest(req.id)}
+                      className="px-3 py-1 text-xs rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* User Management Table */}
         <div className="glass rounded-2xl overflow-hidden border border-white/10">
