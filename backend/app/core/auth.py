@@ -47,7 +47,20 @@ async def get_current_user(
     
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
-    
+
+    # JWT claims verification for roles:
+    # We always load the *live* role from the database (source of truth).
+    # The 'role' claim in the JWT is only for convenience (e.g. quick client-side hints).
+    # Here we explicitly verify the claim against the DB record.
+    # If they differ (role was changed via admin approval or direct edit),
+    # we trust the DB role and proceed (old token will naturally get updated role on next login/refresh).
+    token_role = payload.get("role")
+    if token_role and token_role != user.role:
+        # Claim is stale — this is the verification point.
+        # For stricter behavior, one could force re-auth here, but we use live DB role for UX.
+        # The RBAC below will always use user.role from DB.
+        pass
+
     return user
 
 

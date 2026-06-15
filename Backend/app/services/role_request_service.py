@@ -2,14 +2,14 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from sqlalchemy.orm import Session
 
-from app.models.role_request import RoleChangeRequest
+from app.models.role_request import RoleRequest
 from app.models.user import User
 
-def create_role_request(db: Session, user_id: int, requested_role: str) -> RoleChangeRequest:
+def create_role_request(db: Session, user_id: int, requested_role: str) -> RoleRequest:
     # Check if there's already a pending request for this user
-    existing = db.query(RoleChangeRequest).filter(
-        RoleChangeRequest.user_id == user_id,
-        RoleChangeRequest.status == "pending"
+    existing = db.query(RoleRequest).filter(
+        RoleRequest.user_id == user_id,
+        RoleRequest.status == "pending"
     ).first()
     if existing:
         # Update the requested role if different
@@ -19,7 +19,7 @@ def create_role_request(db: Session, user_id: int, requested_role: str) -> RoleC
         db.refresh(existing)
         return existing
 
-    req = RoleChangeRequest(
+    req = RoleRequest(
         user_id=user_id,
         requested_role=requested_role,
         status="pending",
@@ -29,13 +29,13 @@ def create_role_request(db: Session, user_id: int, requested_role: str) -> RoleC
     db.refresh(req)
     return req
 
-def get_pending_requests(db: Session) -> List[RoleChangeRequest]:
-    return db.query(RoleChangeRequest).filter(
-        RoleChangeRequest.status == "pending"
-    ).order_by(RoleChangeRequest.requested_at.desc()).all()
+def get_pending_requests(db: Session) -> List[RoleRequest]:
+    return db.query(RoleRequest).filter(
+        RoleRequest.status == "pending"
+    ).order_by(RoleRequest.requested_at.desc()).all()
 
-def approve_request(db: Session, request_id: int, admin_user_id: int, notes: Optional[str] = None) -> Optional[RoleChangeRequest]:
-    req = db.query(RoleChangeRequest).filter(RoleChangeRequest.id == request_id).first()
+def approve_request(db: Session, request_id: int, admin_user_id: int, notes: Optional[str] = None) -> Optional[RoleRequest]:
+    req = db.query(RoleRequest).filter(RoleRequest.id == request_id).first()
     if not req or req.status != "pending":
         return None
 
@@ -53,8 +53,8 @@ def approve_request(db: Session, request_id: int, admin_user_id: int, notes: Opt
     db.refresh(req)
     return req
 
-def reject_request(db: Session, request_id: int, admin_user_id: int, notes: Optional[str] = None) -> Optional[RoleChangeRequest]:
-    req = db.query(RoleChangeRequest).filter(RoleChangeRequest.id == request_id).first()
+def reject_request(db: Session, request_id: int, admin_user_id: int, notes: Optional[str] = None) -> Optional[RoleRequest]:
+    req = db.query(RoleRequest).filter(RoleRequest.id == request_id).first()
     if not req or req.status != "pending":
         return None
 
@@ -67,8 +67,8 @@ def reject_request(db: Session, request_id: int, admin_user_id: int, notes: Opti
     db.refresh(req)
     return req
 
-def get_user_pending_request(db: Session, user_id: int) -> Optional[RoleChangeRequest]:
-    return db.query(RoleChangeRequest).filter(
-        RoleChangeRequest.user_id == user_id,
-        RoleChangeRequest.status == "pending"
+def get_user_pending_request(db: Session, user_id: int) -> Optional[RoleRequest]:
+    return db.query(RoleRequest).filter(
+        RoleRequest.user_id == user_id,
+        RoleRequest.status == "pending"
     ).first()

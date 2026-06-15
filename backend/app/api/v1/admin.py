@@ -229,6 +229,11 @@ def approve_role_request(
     current_user: User = require_admin(),
     db: Session = Depends(get_db),
 ):
+    """Backend approval endpoint for RoleRequest.
+    This permanently updates the user's role in the database.
+    The requester will see the new role on next /users/me refresh or re-login
+    (JWT claim will be updated on next token issuance).
+    """
     req = approve_request(db, request_id, current_user.id, action.notes if action else None)
     if not req:
         raise HTTPException(status_code=404, detail="Request not found or already processed")
