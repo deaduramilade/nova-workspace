@@ -182,9 +182,14 @@ const { isHR, isAdmin, isSupervisor, effectiveRole, realRole, clearTestingRole, 
               )}
 
               {isAdmin && (
-                <Link href="/admin" className="glass px-4 py-2 rounded-xl text-xs font-medium hidden sm:block hover:bg-white/10 transition-colors text-violet-300 border border-violet-400/30">
-                  Admin
-                </Link>
+                <>
+                  <Link href="/admin" className="glass px-4 py-2 rounded-xl text-xs font-medium hidden sm:block hover:bg-white/10 transition-colors text-violet-300 border border-violet-400/30">
+                    Admin
+                  </Link>
+                  <Link href="/admin/audit" className="glass px-3 py-2 rounded-xl text-xs font-medium hidden sm:block hover:bg-white/10 transition-colors text-violet-300">
+                    Audit
+                  </Link>
+                </>
               )}
 
               {isSupervisor && (

@@ -41,10 +41,12 @@ export default function AdministratorDashboard() {
     role: 'user',
   });
   const [creating, setCreating] = useState(false);
+  const [userActionLoading, setUserActionLoading] = useState<{ [key: number]: boolean }>({});
 
   // Role change requests (from testing switcher)
   const [roleRequests, setRoleRequests] = useState<any[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
+  const [actionLoading, setActionLoading] = useState<{ [key: string]: boolean }>({});  // e.g., { 'approve-123': true }
 
   const fetchRoleRequests = async () => {
     setLoadingRequests(true);
@@ -61,6 +63,8 @@ export default function AdministratorDashboard() {
   };
 
   const handleApproveRequest = async (id: number) => {
+    const key = `approve-${id}`;
+    setActionLoading(prev => ({ ...prev, [key]: true }));
     try {
       await axios.post(apiUrl(`/admin/role-requests/${id}/approve`), {}, { headers: authHeaders() });
       toast.success('Role request approved. User role updated.');
@@ -69,16 +73,28 @@ export default function AdministratorDashboard() {
       refreshRole(); // in case the admin is viewing as someone else
     } catch (e: any) {
       toast.error(e?.response?.data?.detail || 'Failed to approve');
+    } finally {
+      setActionLoading(prev => {
+        const { [key]: _, ...rest } = prev;
+        return rest;
+      });
     }
   };
 
   const handleRejectRequest = async (id: number) => {
+    const key = `reject-${id}`;
+    setActionLoading(prev => ({ ...prev, [key]: true }));
     try {
       await axios.post(apiUrl(`/admin/role-requests/${id}/reject`), {}, { headers: authHeaders() });
       toast.success('Request rejected.');
       fetchRoleRequests();
     } catch (e: any) {
       toast.error(e?.response?.data?.detail || 'Failed to reject');
+    } finally {
+      setActionLoading(prev => {
+        const { [key]: _, ...rest } = prev;
+        return rest;
+      });
     }
   };
 
@@ -150,6 +166,7 @@ export default function AdministratorDashboard() {
   };
 
   const handleRoleChange = async (userId: number, newRole: string) => {
+    setUserActionLoading(prev => ({ ...prev, [userId]: true }));
     try {
       await axios.patch(
         apiUrl(`/admin/users/${userId}`),
@@ -160,6 +177,11 @@ export default function AdministratorDashboard() {
       fetchUsers();
     } catch (e: any) {
       toast.error(e?.response?.data?.detail || 'Failed to update role');
+    } finally {
+      setUserActionLoading(prev => {
+        const { [userId]: _, ...rest } = prev;
+        return rest;
+      });
     }
   };
 
@@ -225,12 +247,20 @@ export default function AdministratorDashboard() {
             <h1 className="text-3xl font-bold tracking-tight">Administrator Dashboard</h1>
             <p className="text-readable-muted mt-1">Manage all users, roles, and account status</p>
           </div>
-          <button
-            onClick={() => setShowCreate(!showCreate)}
-            className="btn-primary px-5 py-2 rounded-2xl text-sm"
-          >
-            {showCreate ? 'Cancel' : '+ Create New User'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => router.push('/admin/audit')}
+              className="glass px-4 py-2 rounded-2xl text-sm"
+            >
+              View Audit Logs
+            </button>
+            <button
+              onClick={() => setShowCreate(!showCreate)}
+              className="btn-primary px-5 py-2 rounded-2xl text-sm"
+            >
+              {showCreate ? 'Cancel' : '+ Create New User'}
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -374,15 +404,17 @@ export default function AdministratorDashboard() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleApproveRequest(req.id)}
-                      className="px-3 py-1 text-xs rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300"
+                      disabled={!!actionLoading[`approve-${req.id}`]}
+                      className="px-3 py-1 text-xs rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 disabled:opacity-50"
                     >
-                      Approve &amp; Apply
+                      {actionLoading[`approve-${req.id}`] ? 'Approving...' : 'Approve & Apply'}
                     </button>
                     <button
                       onClick={() => handleRejectRequest(req.id)}
-                      className="px-3 py-1 text-xs rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300"
+                      disabled={!!actionLoading[`reject-${req.id}`]}
+                      className="px-3 py-1 text-xs rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 disabled:opacity-50"
                     >
-                      Reject
+                      {actionLoading[`reject-${req.id}`] ? 'Rejecting...' : 'Reject'}
                     </button>
                   </div>
                 </div>

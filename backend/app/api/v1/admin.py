@@ -6,7 +6,7 @@ Only accessible to users with role == "admin".
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from app.core.auth import get_current_user, require_admin, require_role, ADMIN
 from app.core.database import get_db
@@ -21,6 +21,7 @@ from app.services.role_request_service import (
     get_user_pending_request,
 )
 from app.services.supervisor_manager import send_feedback
+from app.services.audit_service import log_role_change
 
 router = APIRouter()
 
@@ -121,8 +122,21 @@ def update_user_as_admin(
         if other_admins == 0:
             raise HTTPException(status_code=400, detail="Cannot remove the last admin")
 
+    old_role = user.role
     if updates.role is not None:
-        user.role = updates.role.lower()
+        new_role = updates.role.value if hasattr(updates.role, 'value') else updates.role.lower()
+        if new_role != old_role:
+            user.role = new_role
+            # Audit log direct role update
+            log_role_change(
+                db,
+                action="user_role_updated",
+                target_user=user,
+                performer=current_user,
+                old_role=old_role,
+                new_value=new_role,
+                details={"updated_via": "admin_patch"},
+            )
     if updates.is_active is not None:
         user.is_active = updates.is_active
     if updates.display_name is not None:
@@ -282,3 +296,45 @@ async def reject_role_request(
         pass
 
     return {"status": "rejected"}
+
+
+# =============================================================================
+# Audit Logs
+# =============================================================================
+
+from app.services.audit_service import get_audit_logs
+
+
+@router.get("/audit-logs")
+def get_audit_logs_endpoint(
+    limit: int = 100,
+    offset: int = 0,
+    target_user_id: Optional[int] = None,
+    action: Optional[str] = None,
+    current_user: User = require_admin(),
+    db: Session = Depends(get_db),
+):
+    """Admin endpoint to view audit logs, focused on role changes."""
+    logs = get_audit_logs(
+        db,
+        limit=limit,
+        offset=offset,
+        target_user_id=target_user_id,
+        action=action,
+    )
+    result = []
+    for log in logs:
+        result.append({
+            "id": log.id,
+            "action": log.action,
+            "target_user_id": log.target_user_id,
+            "target_username": log.target_username,
+            "performed_by_id": log.performed_by_id,
+            "performed_by_username": log.performed_by_username,
+            "old_value": log.old_value,
+            "new_value": log.new_value,
+            "details": log.details,
+            "ip_address": log.ip_address,
+            "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+        })
+    return {"logs": result, "total_returned": len(result)}

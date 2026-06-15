@@ -34,6 +34,7 @@ def init_db():
     from app.models.workspace import Workspace
     from app.models.file import UploadedFile  # ensure table is created for file storage
     from app.models.role_request import RoleRequest
+    from app.models.audit_log import AuditLog
     Base.metadata.create_all(bind=engine)
 
 
