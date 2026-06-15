@@ -17,6 +17,7 @@ interface Phase3ContextValue {
   overview: SupervisorOverview | null;
   feedbackTools: FeedbackTool[];
   isSupervisor: boolean;
+  isHR: boolean;
   recentFeedback: SupervisorFeedback[];
   incomingFeedback: SupervisorFeedback[];
   crdtState: CRDTState | null;
@@ -57,7 +58,9 @@ export function Phase3Provider({ children }: { children: React.ReactNode }) {
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(1);
   const engineRef = useRef<SyncEngine | null>(null);
 
-  const isSupervisor = overview?.is_supervisor ?? ['supervisor', 'admin', 'lead'].includes(getUserRole());
+  const role = getUserRole();
+  const isSupervisor = overview?.is_supervisor ?? ['supervisor', 'admin', 'lead'].includes(role);
+  const isHR = ['hr', 'admin'].includes(role);
 
   useEffect(() => {
     engineRef.current = new SyncEngine(activeWorkspaceId);
@@ -171,6 +174,7 @@ export function Phase3Provider({ children }: { children: React.ReactNode }) {
     overview,
     feedbackTools,
     isSupervisor,
+    isHR,
     recentFeedback,
     incomingFeedback,
     crdtState,
@@ -185,7 +189,7 @@ export function Phase3Provider({ children }: { children: React.ReactNode }) {
     setLocalField,
     handleSupervisorEvent,
   }), [
-    overview, feedbackTools, isSupervisor, recentFeedback, incomingFeedback,
+    overview, feedbackTools, isSupervisor, isHR, recentFeedback, incomingFeedback,
     crdtState, syncStatus, activeWorkspaceId, sendFeedback, dismissFeedback,
     markFeedbackRead, refreshOverview, syncNow, setLocalField, handleSupervisorEvent,
   ]);

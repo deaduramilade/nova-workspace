@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
@@ -58,7 +59,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function NovaDashboard() {
   const router = useRouter();
   const { onlineUsers, offlineUsers, connected, networkOnline } = usePresence();
-  const { overview, syncStatus } = usePhase3();
+  const { overview, syncStatus, isHR } = usePhase3();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBreakTimer, setShowBreakTimer] = useState(false);
@@ -155,17 +156,45 @@ export default function NovaDashboard() {
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="btn-primary hidden sm:inline-flex px-5 py-2.5 rounded-xl text-sm font-medium text-white">
+            <button
+              onClick={() => router.push('/workspace/1')}
+              className="btn-primary hidden sm:inline-flex px-5 py-2.5 rounded-xl text-sm font-medium text-white"
+            >
               New Workspace
             </button>
+
             <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <div className="text-sm font-medium">Alex Rivera</div>
-                <div className="text-xs text-readable-subtle">@arivera</div>
-              </div>
-              <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-purple-500 rounded-full flex items-center justify-center font-semibold text-sm ring-2 ring-white/10">
-                AR
-              </div>
+              <Link href="/settings" className="glass px-4 py-2 rounded-xl text-xs font-medium hidden sm:block hover:bg-white/10 transition-colors">
+                Settings
+              </Link>
+
+              {isHR && (
+                <Link href="/hr" className="glass px-4 py-2 rounded-xl text-xs font-medium hidden sm:block hover:bg-white/10 transition-colors text-emerald-300">
+                  HR Workspace
+                </Link>
+              )}
+
+              <Link href="/settings" className="flex items-center gap-3 group">
+                <div className="text-right hidden sm:block">
+                  <div className="text-sm font-medium group-hover:underline">Profile</div>
+                  <div className="text-xs text-readable-subtle">Settings &amp; accounts</div>
+                </div>
+                <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-purple-500 rounded-full flex items-center justify-center font-semibold text-sm ring-2 ring-white/10 overflow-hidden">
+                  {(() => {
+                    try {
+                      const u = JSON.parse(localStorage.getItem('nova_user') || '{}');
+                      if (u.avatar_url) {
+                        const src = u.avatar_url.startsWith('http') ? u.avatar_url : apiUrl(u.avatar_url);
+                        return <img src={src} alt="You" className="w-full h-full object-cover" />;
+                      }
+                      const initials = (u.display_name || u.username || 'U').replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase();
+                      return initials || 'U';
+                    } catch {
+                      return 'U';
+                    }
+                  })()}
+                </div>
+              </Link>
             </div>
           </div>
         </div>

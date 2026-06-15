@@ -14,6 +14,7 @@ from app.services.neko_service import check_neko_health
 
 
 SUPERVISOR_ROLES = ("supervisor", "admin", "lead")
+HR_ROLES = ("hr", "admin")
 FEEDBACK_TYPES = ("nudge", "praise", "flag", "broadcast", "check_in")
 
 _feedback_log: list[dict] = []
@@ -25,6 +26,10 @@ def _now() -> str:
 
 def is_supervisor(role: str) -> bool:
     return role.lower() in SUPERVISOR_ROLES
+
+
+def is_hr(role: str) -> bool:
+    return role.lower() in HR_ROLES
 
 
 def _append_feedback(entry: dict) -> dict:
@@ -162,3 +167,4 @@ def mark_feedback_read(feedback_id: str, username: str) -> Optional[dict]:
 
 
 supervisor_manager_roles = SUPERVISOR_ROLES
+hr_roles = HR_ROLES

@@ -1,10 +1,12 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Dict, List, Any
 
 
 # In-memory working hours ledger (resets on server restart)
 _sessions: dict[str, dict] = {}
 _daily_totals: dict[str, dict[str, int]] = {}
+# Approvals: key = f"{username}:{date}" -> {"approved": bool, "approved_by": str, "approved_at": str}
+_approvals: dict[str, dict] = {}
 
 
 def _today_key() -> str:
@@ -120,3 +122,166 @@ def get_team_hours(workspace_id: int) -> list[dict]:
 
     team.sort(key=lambda x: x["today_seconds"], reverse=True)
     return team
+
+
+def _parse_date(d: Optional[str]) -> Optional[str]:
+    if not d:
+        return None
+    try:
+        # normalize to YYYY-MM-DD
+        return datetime.fromisoformat(d.replace("Z", "+00:00")).date().isoformat() if "T" in d else d
+    except Exception:
+        return d
+
+
+def get_employee_work_logs(
+    username: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    approved_only: bool = False,
+    pending_only: bool = False,
+) -> List[dict]:
+    """Return detailed work log entries for HR view, with date range and approval filters."""
+    df = _parse_date(date_from)
+    dt = _parse_date(date_to)
+    today = _today_key()
+    logs: List[dict] = []
+
+    # From persisted daily totals
+    for uname, days in _daily_totals.items():
+        if username and uname != username:
+            continue
+        for day, secs in sorted(days.items()):
+            if df and day < df:
+                continue
+            if dt and day > dt:
+                continue
+            key = f"{uname}:{day}"
+            appr = _approvals.get(key, {})
+            is_approved = appr.get("approved", False)
+            if approved_only and not is_approved:
+                continue
+            if pending_only and is_approved:
+                continue
+            logs.append({
+                "id": key,
+                "username": uname,
+                "display_name": uname.replace("_", " ").title(),
+                "date": day,
+                "seconds": secs,
+                "hours": round(secs / 3600, 2),
+                "approved": is_approved,
+                "approved_by": appr.get("approved_by"),
+                "approved_at": appr.get("approved_at"),
+                "source": "daily_total",
+            })
+
+    # Include active sessions as "today" pending logs
+    for key, sess in list(_sessions.items()):
+        uname = sess["username"]
+        if username and uname != username:
+            continue
+        day = today
+        if df and day < df or dt and day > dt:
+            continue
+        started = datetime.fromisoformat(sess["started_at"])
+        extra = int((datetime.now(timezone.utc) - started).total_seconds())
+        key_a = f"{uname}:{day}"
+        appr = _approvals.get(key_a, {})
+        is_approved = appr.get("approved", False)
+        if approved_only and not is_approved:
+            continue
+        if pending_only and is_approved:
+            continue
+        # merge with daily if any
+        daily_secs = _daily_totals.get(uname, {}).get(day, 0)
+        total = daily_secs + extra
+        logs.append({
+            "id": f"active:{key_a}",
+            "username": uname,
+            "display_name": sess.get("display_name", uname.replace("_", " ").title()),
+            "date": day,
+            "seconds": total,
+            "hours": round(total / 3600, 2),
+            "approved": is_approved,
+            "approved_by": appr.get("approved_by"),
+            "approved_at": appr.get("approved_at"),
+            "source": "active_session",
+            "workspace_id": sess.get("workspace_id"),
+            "started_at": sess["started_at"],
+        })
+
+    # Dedup active vs daily for same user/day
+    seen = set()
+    deduped = []
+    for log in sorted(logs, key=lambda x: (x["date"], x["username"]), reverse=True):
+        k = (log["username"], log["date"])
+        if k in seen:
+            continue
+        seen.add(k)
+        deduped.append(log)
+
+    # Simulated data if empty
+    if not deduped:
+        sim_users = ["johndoe", "alicesmith", "michaelchen"]
+        base_date = df or today
+        for i, uname in enumerate(sim_users):
+            if username and uname != username:
+                continue
+            secs = 18000 + i * 3000
+            deduped.append({
+                "id": f"sim:{uname}:{base_date}",
+                "username": uname,
+                "display_name": uname.replace("_", " ").title(),
+                "date": base_date,
+                "seconds": secs,
+                "hours": round(secs / 3600, 2),
+                "approved": False,
+                "approved_by": None,
+                "approved_at": None,
+                "source": "simulated",
+            })
+
+    return deduped[:100]  # limit
+
+
+def approve_employee_hours(username: str, date: str, approved_by: str, approve: bool = True) -> dict:
+    """Approve or un-approve a specific employee's hours for a date."""
+    d = _parse_date(date) or _today_key()
+    key = f"{username}:{d}"
+    entry = _approvals.get(key, {})
+    entry["approved"] = approve
+    entry["approved_by"] = approved_by
+    entry["approved_at"] = datetime.now(timezone.utc).isoformat()
+    _approvals[key] = entry
+
+    # If approving an active session's day, it stays in daily after end
+    return {
+        "username": username,
+        "date": d,
+        "approved": approve,
+        "approved_by": approved_by,
+        "hours": round((_daily_totals.get(username, {}).get(d, 0)) / 3600, 2),
+    }
+
+
+def get_hr_overview() -> dict:
+    """High level stats for HR dashboard."""
+    today = _today_key()
+    total_today = 0
+    active_count = len(_sessions)
+    employees = set(_daily_totals.keys()) | {s["username"] for s in _sessions.values()}
+
+    for uname, days in _daily_totals.items():
+        total_today += days.get(today, 0)
+    for key, sess in _sessions.items():
+        started = datetime.fromisoformat(sess["started_at"])
+        total_today += int((datetime.now(timezone.utc) - started).total_seconds())
+
+    return {
+        "total_employees_tracked": len(employees),
+        "active_sessions": active_count,
+        "hours_today": round(total_today / 3600, 1),
+        "pending_approvals": sum(1 for k, a in _approvals.items() if not a.get("approved")),
+        "date": today,
+    }

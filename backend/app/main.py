@@ -19,11 +19,13 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.calls import router as calls_router
 from app.api.v1.chat import router as chat_router
 from app.api.v1.files import router as files_router
+from app.api.v1.hr import router as hr_router
 from app.api.v1.presence import router as presence_router
 from app.api.v1.sessions import router as sessions_router
 from app.api.v1.streaming import router as streaming_router
 from app.api.v1.supervisor import router as supervisor_router
 from app.api.v1.sync import router as sync_router
+from app.api.v1.users import router as users_router
 from app.api.v1.workspaces import router as workspaces_router
 
 load_dotenv()
@@ -80,6 +82,8 @@ app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
 app.include_router(calls_router, prefix="/api/v1/calls", tags=["calls"])
 app.include_router(files_router, prefix="/api/v1/files", tags=["files"])
 app.include_router(presence_router, prefix="/api/v1/presence", tags=["presence"])
+app.include_router(users_router, prefix="/api/v1/users", tags=["users"])
+app.include_router(hr_router, prefix="/api/v1/hr", tags=["hr"])
 
 
 def _health_payload() -> dict:

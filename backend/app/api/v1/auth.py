@@ -9,7 +9,7 @@ from app.schemas.user import UserCreate, UserResponse
 
 router = APIRouter()
 
-_RESERVED_ROLES = {"admin", "supervisor", "lead"}
+_RESERVED_ROLES = {"admin", "supervisor", "lead", "hr"}
 
 
 @router.post("/register", response_model=UserResponse)
@@ -69,8 +69,17 @@ def login(username: str, password: str, request: Request, db: Session = Depends(
 
     access_token = create_access_token({"sub": user.username, "role": user.role})
 
+    # Return richer user shape so frontend can immediately show avatar / display name
+    user_payload = {
+        "id": user.id,
+        "username": user.username,
+        "role": user.role,
+        "display_name": user.display_name or user.username,
+        "avatar_url": user.avatar_url,
+    }
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": {"id": user.id, "username": user.username, "role": user.role},
+        "user": user_payload,
     }
