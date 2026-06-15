@@ -72,6 +72,7 @@ export default function WorkspacePage() {
   const [wsUploading, setWsUploading] = useState(false);
   const wsFileInputRef = useRef<HTMLInputElement>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(true);
 
   const { setRoomId, openChat, sendAttachment: chatSendAttachment } = useChat();
   const { onlineUsers, connected: presenceConnected, myPresence } = usePresence();
@@ -156,15 +157,20 @@ export default function WorkspacePage() {
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
   }, []);
 
-  // Mobile detection + smart default for sidebar (keep the desktop/Neko view clean on phones)
+  // Mobile detection + smart default for sidebar (keep the remote desktop/Neko view clean on phones)
   useEffect(() => {
     const updateMobile = () => {
-      const mobile = typeof window !== 'undefined' && window.innerWidth < 768;
+      if (typeof window === 'undefined') return;
+      const mobile = window.innerWidth < 768;
+      const portrait = window.innerHeight >= window.innerWidth;
       setIsMobile(mobile);
-      // On phones we prefer the full remote desktop view by default.
-      // User can tap the sidebar toggle (⟨⟩) to open tools/chat/files.
+      setIsPortrait(portrait);
+      // When on mobile (or after rotate), prefer giving maximum space to the remote desktop view.
       if (mobile) {
-        setSidebarOpen(false);
+        // Only auto-close the drawer if user is on a passive tab (don't fight them when using chat/files)
+        if (sidebarTab === 'live' || sidebarTab === 'neko' || sidebarTab === 'hours') {
+          setSidebarOpen(false);
+        }
       }
     };
 
@@ -176,7 +182,7 @@ export default function WorkspacePage() {
       window.removeEventListener('resize', updateMobile);
       window.removeEventListener('orientationchange', updateMobile);
     };
-  }, []);
+  }, [sidebarTab]);
 
   useEffect(() => {
     return () => {
@@ -207,6 +213,17 @@ export default function WorkspacePage() {
 
   const handlePopOut = () => {
     if (session?.stream_url) window.open(session.stream_url, '_blank', 'noopener,noreferrer');
+  };
+
+  // Action tied to the mobile view indicator: give the user the best possible "desktop on phone" experience
+  const maximizeDesktopView = () => {
+    setSidebarOpen(false);
+    const el = streamContainerRef.current;
+    if (el && !document.fullscreenElement) {
+      el.requestFullscreen().catch(() => {
+        // fullscreen may be blocked; the sidebar close + stream focus is still valuable
+      });
+    }
   };
 
   const triggerWorkspaceUpload = () => {
@@ -322,6 +339,25 @@ export default function WorkspacePage() {
                   <span>·</span>
                   <span className="text-amber-400">{syncStatus.pending} queued</span>
                 </>
+              )}
+
+              {/* Mobile view indicator – visible only on phones/tablets. 
+                  Tap it to maximize the remote desktop (Neko) view: close tools drawer + enter fullscreen. 
+                  Helps users know they are in the mobile-optimized workspace experience. */}
+              {isMobile && !isFullscreen && (
+                <button
+                  type="button"
+                  onClick={maximizeDesktopView}
+                  className="ml-1 inline-flex items-center gap-1 text-[9px] leading-none stat-pill px-1.5 py-px rounded-full active:bg-white/20 touch-manipulation"
+                  title={isPortrait 
+                    ? "Mobile view (portrait). Tap to maximize remote desktop + fullscreen." 
+                    : "Mobile view active. Tap to give the remote desktop maximum space."}
+                  aria-label="Mobile view indicator"
+                >
+                  <span>📱</span>
+                  <span>Mobile</span>
+                  {isPortrait && <span className="text-amber-400">↻</span>}
+                </button>
               )}
             </p>
           </div>
