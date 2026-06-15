@@ -446,6 +446,16 @@ body {
   padding-left: 14px;
 }
 
+/* Role-based Nova AI assistant messages (triggered by typing "Nova" in chat) */
+.chat-message-ai {
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  margin-left: 4px;
+}
+.chat-message-ai .text-readable-muted {
+  color: #ddd6fe;
+}
+
 /* Workspace streaming */
 .workspace-stream-page {
   height: 100dvh; /* dynamic viewport for mobile address bars */

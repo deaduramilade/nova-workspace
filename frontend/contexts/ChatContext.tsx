@@ -22,6 +22,7 @@ interface ChatContextValue {
   sendMessage: (content: string, targetType?: ChatTargetType, targetValue?: string) => boolean;
   sendNotice: (content: string, targetType?: ChatTargetType, targetValue?: string) => boolean;
   sendAttachment: (attachment: Attachment, caption?: string, targetType?: ChatTargetType, targetValue?: string) => boolean;
+  sendAIResponse: (content: string, assistantName?: string) => boolean;
   clearUnread: () => void;
   setRoomId: (id: string) => void;
   authenticated: boolean;
@@ -84,7 +85,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     [isOpen]
   );
 
-  const { connected, messages, sendMessage, sendNotice, sendAttachment, username } = useChatSocket({
+  const { connected, messages, sendMessage, sendNotice, sendAttachment, sendAIResponse, username } = useChatSocket({
     roomId,
     displayName,
     username: user.username,
@@ -120,11 +121,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       sendMessage,
       sendNotice,
       sendAttachment,
+      sendAIResponse,
       clearUnread,
       setRoomId,
       authenticated: hasToken,
     }),
-    [roomId, connected, messages, unreadCount, isOpen, displayName, username, team, sendMessage, sendNotice, sendAttachment, hasToken]
+    [roomId, connected, messages, unreadCount, isOpen, displayName, username, team, sendMessage, sendNotice, sendAttachment, sendAIResponse, hasToken]
   );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

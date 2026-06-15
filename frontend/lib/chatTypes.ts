@@ -19,6 +19,7 @@ export interface ChatMessage {
   target_value: string | null;
   timestamp: string;
   attachment?: Attachment;
+  is_ai?: boolean; // role-based Nova AI assistant messages (triggered by "Nova ...")
 }
 
 export interface ChatUser {

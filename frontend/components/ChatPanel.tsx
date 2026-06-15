@@ -2,7 +2,9 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import { usePathname } from 'next/navigation';
 import { useChat } from '../contexts/ChatContext';
+import { usePhase3 } from '../contexts/Phase3Context';
 import { usePresence } from '../contexts/RealtimeContext';
 import { Attachment, ChatTargetType, TEAM_OPTIONS } from '../lib/chatTypes';
 import { presenceDotClass } from '../lib/presenceUtils';
@@ -24,7 +26,7 @@ interface ChatPanelProps {
 export default function ChatPanel({ embedded = false }: ChatPanelProps) {
   const {
     connected, messages, displayName, team, setTeam,
-    sendMessage, sendNotice, sendAttachment, closeChat, roomId, authenticated,
+    sendMessage, sendNotice, sendAttachment, sendAIResponse, closeChat, roomId, authenticated,
   } = useChat();
   const { onlineUsers, offlineUsers } = usePresence();
 
@@ -35,6 +37,19 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Role + context aware Nova assistant detection
+  const { isAdmin, isHR, isSupervisor } = usePhase3();
+  const pathname = usePathname();
+
+  const getNovaPersona = (): string => {
+    const path = (pathname || '').toLowerCase();
+    if (isHR || path.includes('/hr')) return 'hr';
+    if (isSupervisor || path.includes('/supervisor')) return 'supervisor';
+    if (isAdmin || path.includes('/admin')) return 'admin';
+    if (roomId && roomId.startsWith('workspace-')) return 'workspace';
+    return 'general';
+  };
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -42,9 +57,45 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
+
+    const trimmed = input.trim();
+    const isNovaTrigger = trimmed.toLowerCase().startsWith('nova');
+
+    // Always send the human message so the team sees the question / command
     const ok = targetType === 'all'
-      ? sendMessage(input.trim())
-      : sendMessage(input.trim(), targetType, targetValue);
+      ? sendMessage(trimmed)
+      : sendMessage(trimmed, targetType, targetValue);
+
+    if (isNovaTrigger && ok) {
+      // Trigger the role-based Nova assistant
+      const query = trimmed.replace(/^nova[\s,:-]*/i, '').trim() || trimmed;
+      const persona = getNovaPersona();
+
+      // Call backend AI (role + context aware)
+      axios
+        .post(
+          apiUrl('/agents/chat'),
+          {
+            query,
+            persona,
+            room_id: roomId,
+            context: pathname,
+          },
+          { headers: authHeaders() }
+        )
+        .then((res) => {
+          const reply = res.data?.response || 'Nova is thinking...';
+          const assistantName = res.data?.from || `Nova (${persona})`;
+          // Broadcast the AI reply into the shared chat room as the correct assistant
+          sendAIResponse(reply, assistantName);
+        })
+        .catch(() => {
+          // Graceful local fallback
+          const fallback = `Nova (${persona}): I'm having trouble reaching my brain right now. Try again in a moment or rephrase your request.`;
+          sendAIResponse(fallback, `Nova (${persona})`);
+        });
+    }
+
     if (ok) setInput('');
   };
 
@@ -199,17 +250,23 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
         )}
         {messages.map((msg, i) => {
           const isNotice = msg.type === 'notice';
-          const isOwn = msg.sender_name === displayName;
+          const isAI = msg.is_ai || msg.sender === 'nova' || (msg.sender_name || '').toLowerCase().startsWith('nova');
+          const isOwn = msg.sender_name === displayName && !isAI;
           const isTargeted = msg.target_type !== 'all' && msg.target_value;
 
           return (
             <div
               key={`${msg.timestamp}-${i}`}
-              className={`chat-message ${isNotice ? 'chat-message-notice' : ''} ${isOwn ? 'chat-message-own' : ''}`}
+              className={`chat-message ${isNotice ? 'chat-message-notice' : ''} ${isOwn ? 'chat-message-own' : ''} ${isAI ? 'chat-message-ai' : ''}`}
             >
-              {!isNotice && (
+              {!isNotice && !isAI && (
                 <div className="w-7 h-7 shrink-0 bg-gradient-to-br from-sky-400 to-indigo-500 rounded-full flex items-center justify-center text-[9px] font-semibold">
                   {initials(msg.sender_name)}
+                </div>
+              )}
+              {isAI && (
+                <div className="w-7 h-7 shrink-0 bg-gradient-to-br from-violet-400 to-fuchsia-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white">
+                  N
                 </div>
               )}
               <div className="min-w-0 flex-1">
@@ -224,6 +281,11 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
                   {isNotice && (
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/20">
                       Notice
+                    </span>
+                  )}
+                  {isAI && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-300 border border-violet-500/20">
+                      AI
                     </span>
                   )}
                 </div>
@@ -323,7 +385,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={
-            targetType === 'all' ? 'Message everyone...' :
+            targetType === 'all' ? 'Message everyone... (type "Nova ..." for role-based AI assistant)' :
             targetType === 'user' ? `Message ${targetValue || 'person'}...` :
             `Notice to ${targetValue || 'team'}...`
           }

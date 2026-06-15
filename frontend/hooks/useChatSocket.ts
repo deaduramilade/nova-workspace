@@ -109,5 +109,19 @@ export function useChatSocket({
     []
   );
 
-  return { connected, messages, sendMessage, sendNotice, sendAttachment, username };
+  // Special sender for AI assistant responses so they appear as "Nova (Role)" in the shared chat
+  const sendAIResponse = useCallback(
+    (content: string, assistantName = 'Nova') => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return false;
+      wsRef.current.send(JSON.stringify({
+        type: 'ai',
+        content: (content || '').trim(),
+        assistant_name: assistantName,
+      }));
+      return true;
+    },
+    []
+  );
+
+  return { connected, messages, sendMessage, sendNotice, sendAttachment, sendAIResponse, username };
 }

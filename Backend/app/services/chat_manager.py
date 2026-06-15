@@ -56,7 +56,7 @@ class ChatManager:
         attachment = data.get("attachment") or None  # {filename, url, size?, content_type?, ...}
 
         # Allow pure-attachment messages (no text caption required)
-        if not content and not attachment:
+        if not content and not attachment and msg_type != "ai":
             return
 
         target_type = data.get("target_type", "all")
@@ -72,6 +72,18 @@ class ChatManager:
             "target_value": target_value,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+
+        if msg_type == "ai":
+            # Special handling for role-based Nova assistant replies
+            assistant_name = data.get("assistant_name") or "Nova"
+            payload["sender"] = "nova"
+            payload["sender_name"] = assistant_name
+            payload["is_ai"] = True
+            # AI messages are usually broadcast to the whole room
+            if not target_type or target_type == "all":
+                target_type = "all"
+                target_value = None
+
         if attachment:
             # Only include safe known keys
             safe_attachment = {

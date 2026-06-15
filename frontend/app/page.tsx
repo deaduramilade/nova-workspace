@@ -59,7 +59,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function NovaDashboard() {
   const router = useRouter();
   const { onlineUsers, offlineUsers, connected, networkOnline } = usePresence();
-  const { overview, syncStatus, isHR, isAdmin } = usePhase3();
+  const { overview, syncStatus, isHR, isAdmin, isSupervisor, currentRole } = usePhase3();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBreakTimer, setShowBreakTimer] = useState(false);
@@ -168,6 +168,7 @@ export default function NovaDashboard() {
                 Settings
               </Link>
 
+              {/* Role-based navigation links - only visible to authorized users */}
               {isHR && (
                 <Link href="/hr" className="glass px-4 py-2 rounded-xl text-xs font-medium hidden sm:block hover:bg-white/10 transition-colors text-emerald-300">
                   HR Workspace
@@ -180,10 +181,25 @@ export default function NovaDashboard() {
                 </Link>
               )}
 
+              {isSupervisor && (
+                <Link href="/supervisor" className="glass px-4 py-2 rounded-xl text-xs font-medium hidden sm:block hover:bg-white/10 transition-colors">
+                  Supervisor
+                </Link>
+              )}
+
               <Link href="/settings" className="flex items-center gap-3 group">
                 <div className="text-right hidden sm:block">
-                  <div className="text-sm font-medium group-hover:underline">Profile</div>
-                  <div className="text-xs text-readable-subtle">Settings &amp; accounts</div>
+                  <div className="text-sm font-medium group-hover:underline">
+                    {(() => {
+                      try {
+                        const u = JSON.parse(localStorage.getItem('nova_user') || '{}');
+                        return u.display_name || u.username || 'Profile';
+                      } catch {
+                        return 'Profile';
+                      }
+                    })()}
+                  </div>
+                  <div className="text-xs text-readable-subtle capitalize">{currentRole} · Settings</div>
                 </div>
                 <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-purple-500 rounded-full flex items-center justify-center font-semibold text-sm ring-2 ring-white/10 overflow-hidden">
                   {(() => {

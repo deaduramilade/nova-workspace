@@ -19,6 +19,7 @@ interface Phase3ContextValue {
   isSupervisor: boolean;
   isHR: boolean;
   isAdmin: boolean;
+  currentRole: string;
   recentFeedback: SupervisorFeedback[];
   incomingFeedback: SupervisorFeedback[];
   crdtState: CRDTState | null;
@@ -63,6 +64,7 @@ export function Phase3Provider({ children }: { children: React.ReactNode }) {
   const isSupervisor = overview?.is_supervisor ?? ['supervisor', 'admin', 'lead'].includes(role);
   const isHR = ['hr', 'admin'].includes(role);
   const isAdmin = role === 'admin';
+  const currentRole = role;
 
   useEffect(() => {
     engineRef.current = new SyncEngine(activeWorkspaceId);
@@ -71,6 +73,31 @@ export function Phase3Provider({ children }: { children: React.ReactNode }) {
     });
     return unsub;
   }, [activeWorkspaceId, networkOnline]);
+
+  // Refresh current user profile from backend on load (ensures fresh role for role-based UI)
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+
+    axios
+      .get(apiUrl('/users/me'), { headers: authHeaders() })
+      .then((res) => {
+        if (res.data) {
+          // Sync latest user (incl. role) to localStorage so getUserRole() and other UIs stay in sync
+          const prev = localStorage.getItem('nova_user');
+          let merged = res.data;
+          if (prev) {
+            try {
+              merged = { ...JSON.parse(prev), ...res.data };
+            } catch {}
+          }
+          localStorage.setItem('nova_user', JSON.stringify(merged));
+        }
+      })
+      .catch(() => {
+        /* ignore; fall back to cached localStorage role */
+      });
+  }, []);
 
   const refreshOverview = useCallback(async () => {
     const token = localStorage.getItem('access_token');
@@ -178,6 +205,7 @@ export function Phase3Provider({ children }: { children: React.ReactNode }) {
     isSupervisor,
     isHR,
     isAdmin,
+    currentRole,
     recentFeedback,
     incomingFeedback,
     crdtState,
@@ -192,7 +220,7 @@ export function Phase3Provider({ children }: { children: React.ReactNode }) {
     setLocalField,
     handleSupervisorEvent,
   }), [
-    overview, feedbackTools, isSupervisor, isHR, isAdmin, recentFeedback, incomingFeedback,
+    overview, feedbackTools, isSupervisor, isHR, isAdmin, currentRole, recentFeedback, incomingFeedback,
     crdtState, syncStatus, activeWorkspaceId, sendFeedback, dismissFeedback,
     markFeedbackRead, refreshOverview, syncNow, setLocalField, handleSupervisorEvent,
   ]);
