@@ -12,7 +12,7 @@ from app.core.auth import get_current_user, require_admin, require_role, ADMIN
 from app.core.database import get_db
 from app.core.security import hash_password
 from app.models.user import User
-from app.schemas.user import UserResponse
+from app.schemas.user import UserResponse, UserRole
 from app.services.role_request_service import (
     create_role_request,
     get_pending_requests,
@@ -20,6 +20,7 @@ from app.services.role_request_service import (
     reject_request,
     get_user_pending_request,
 )
+from app.services.supervisor_manager import send_feedback
 
 router = APIRouter()
 
@@ -28,19 +29,19 @@ class AdminUserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=32)
     email: EmailStr
     password: str = Field(min_length=8)
-    role: str = "user"
+    role: UserRole = UserRole.USER
     is_active: bool = True
 
 
 class AdminUserUpdate(BaseModel):
-    role: Optional[str] = None
+    role: Optional[UserRole] = None
     is_active: Optional[bool] = None
     display_name: Optional[str] = None
     bio: Optional[str] = None
 
 
 class RoleRequestCreate(BaseModel):
-    desired_role: str
+    desired_role: UserRole
 
 
 class RoleRequestAction(BaseModel):
@@ -184,11 +185,7 @@ def request_role_change(
     """User requests a role change (used by testing Role Switcher).
     This is NOT permanent. An administrator must approve it.
     """
-    allowed_roles = {"user", "supervisor", "hr", "lead", "admin"}
-    desired = data.desired_role.lower()
-    if desired not in allowed_roles:
-        raise HTTPException(status_code=400, detail="Invalid role requested")
-
+    desired = data.desired_role.value.lower()
     if desired == current_user.role:
         raise HTTPException(status_code=400, detail="You already have this role")
 
@@ -223,7 +220,7 @@ def list_role_requests(
 
 
 @router.post("/role-requests/{request_id}/approve")
-def approve_role_request(
+async def approve_role_request(
     request_id: int,
     action: RoleRequestAction = None,
     current_user: User = require_admin(),
@@ -237,6 +234,21 @@ def approve_role_request(
     req = approve_request(db, request_id, current_user.id, action.notes if action else None)
     if not req:
         raise HTTPException(status_code=404, detail="Request not found or already processed")
+
+    # Automated role change notification via supervisor feedback system (realtime)
+    try:
+        await send_feedback(
+            supervisor=current_user.username,
+            supervisor_role=current_user.role,
+            feedback_type="praise",  # or custom, but reuse for delivery
+            message=f"Your role has been approved and changed to '{req.requested_role}'. Please refresh or re-login to see updated permissions.",
+            target_username=req.user.username,
+            workspace_id=1,  # general
+            priority="normal",
+        )
+    except Exception:
+        pass  # non-fatal
+
     return {
         "status": "approved",
         "user_id": req.user_id,
@@ -245,7 +257,7 @@ def approve_role_request(
 
 
 @router.post("/role-requests/{request_id}/reject")
-def reject_role_request(
+async def reject_role_request(
     request_id: int,
     action: RoleRequestAction = None,
     current_user: User = require_admin(),
@@ -254,4 +266,19 @@ def reject_role_request(
     req = reject_request(db, request_id, current_user.id, action.notes if action else None)
     if not req:
         raise HTTPException(status_code=404, detail="Request not found or already processed")
+
+    # Automated notification on rejection
+    try:
+        await send_feedback(
+            supervisor=current_user.username,
+            supervisor_role=current_user.role,
+            feedback_type="nudge",
+            message=f"Your role change request to '{req.requested_role}' was rejected." + (f" Notes: {action.notes}" if action and action.notes else ""),
+            target_username=req.user.username,
+            workspace_id=1,
+            priority="normal",
+        )
+    except Exception:
+        pass
+
     return {"status": "rejected"}

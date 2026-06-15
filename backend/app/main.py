@@ -10,6 +10,7 @@ from app.core.database import init_db, pool_status
 from app.core.performance_middleware import PerformanceMiddleware
 from app.core.rate_limit import rate_limiter
 from app.core.rate_limit_middleware import RateLimitMiddleware
+from app.core.rbac_middleware import RBACMiddleware
 from app.core.readiness import run_readiness_checks
 from app.core.request_limit_middleware import RequestSizeLimitMiddleware
 from app.core.security_middleware import SecurityHeadersMiddleware
@@ -51,6 +52,14 @@ app.add_middleware(PerformanceMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(RequestSizeLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(
+    RBACMiddleware,
+    protected_paths={
+        "admin": {"/api/v1/admin"},
+        "hr": {"/api/v1/hr"},
+        "supervisor": {"/api/v1/supervisor"},
+    }
+)
 
 if settings.is_production and settings.allowed_hosts_list:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts_list)

@@ -2,10 +2,18 @@ import re
 from pydantic import BaseModel, EmailStr, field_validator
 from datetime import datetime
 from typing import Optional, Dict, Any
+from enum import Enum
 
 from app.core.config import settings
 
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{3,32}$")
+
+class UserRole(str, Enum):
+    USER = "user"
+    SUPERVISOR = "supervisor"
+    ADMIN = "admin"
+    LEAD = "lead"
+    HR = "hr"
 
 
 class UserBase(BaseModel):
@@ -23,7 +31,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
-    role: Optional[str] = "user"
+    role: UserRole = UserRole.USER
 
     @field_validator("password")
     @classmethod
@@ -34,19 +42,21 @@ class UserCreate(UserBase):
             raise ValueError("Password must include at least one letter and one number")
         return v
 
-    @field_validator("role")
+    @field_validator("role", mode="before")
     @classmethod
-    def validate_role(cls, v: Optional[str]) -> str:
-        allowed = {"user", "supervisor", "admin", "lead", "hr"}
-        role = (v or "user").lower()
-        if role not in allowed:
+    def validate_role(cls, v: Optional[str]) -> UserRole:
+        if v is None:
+            return UserRole.USER
+        role = str(v).lower()
+        try:
+            return UserRole(role)
+        except ValueError:
             raise ValueError("Invalid role")
-        return role
 
 
 class UserResponse(UserBase):
     id: int
-    role: str
+    role: UserRole
     is_active: bool
     created_at: datetime
     display_name: Optional[str] = None
