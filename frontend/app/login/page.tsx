@@ -10,6 +10,9 @@ import { apiUrl } from '../../lib/api';
 export default function LoginPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({ username: '', password: '' });
+  const [totpCode, setTotpCode] = useState('');
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [tempUser, setTempUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -21,14 +24,26 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const response = await axios.post(apiUrl('/auth/login'), null, {
-        params: formData,
-      });
+      const params: any = { ...formData };
+      if (mfaRequired && totpCode) {
+        params.totp_code = totpCode;
+      }
+
+      const response = await axios.post(apiUrl('/auth/login'), null, { params });
+
+      if (response.data.mfa_required) {
+        setMfaRequired(true);
+        setTempUser(response.data.user);
+        toast('TOTP code required for MFA');
+        setIsLoading(false);
+        return;
+      }
+
       localStorage.setItem('access_token', response.data.access_token);
       if (response.data.user) {
         localStorage.setItem('nova_user', JSON.stringify({
           ...response.data.user,
-          display_name: response.data.user.username,
+          display_name: response.data.user.display_name || response.data.user.username,
         }));
       }
       toast.success('Welcome back!');
@@ -84,12 +99,28 @@ export default function LoginPage() {
             />
           </div>
 
+          {mfaRequired && (
+            <div>
+              <label className="block text-sm mb-2 text-white/80">TOTP Code (Google Authenticator)</label>
+              <input
+                type="text"
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value)}
+                className="w-full px-5 py-4 rounded-2xl bg-white/10 border border-white/20 focus:outline-none focus:border-sky-400 text-white placeholder:text-white/50"
+                placeholder="123456"
+                maxLength={6}
+                required
+              />
+              <p className="text-xs text-white/50 mt-1">Enter the 6-digit code from your authenticator app.</p>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={isLoading}
             className="w-full py-4 bg-gradient-to-r from-sky-500 to-indigo-600 rounded-2xl font-semibold text-base hover:brightness-110 transition-all disabled:opacity-70 text-white"
           >
-            {isLoading ? 'Signing in...' : 'Sign in'}
+            {isLoading ? 'Signing in...' : (mfaRequired ? 'Verify & Sign in' : 'Sign in')}
           </button>
         </form>
 

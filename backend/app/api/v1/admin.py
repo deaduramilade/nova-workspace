@@ -57,7 +57,8 @@ class RoleRequestCreate(BaseModel):
 
 class RoleRequestAction(BaseModel):
     notes: Optional[str] = None
-    otp: Optional[str] = None  # Required for MFA on approve/reject
+    otp: Optional[str] = None  # email OTP (legacy)
+    totp_code: Optional[str] = None  # TOTP from Google Authenticator
 
 
 class SendOtpRequest(BaseModel):
@@ -321,12 +322,21 @@ async def approve_role_request(
     The requester will see the new role on next /users/me refresh or re-login
     (JWT claim will be updated on next token issuance).
     """
-    if not action or not action.otp:
-        raise HTTPException(status_code=400, detail="OTP is required for approval")
-
-    otp_key = f"admin_otp:{current_user.id}:{request_id}"
-    if not verify_otp(otp_key, action.otp):
-        raise HTTPException(status_code=401, detail="Invalid or expired OTP")
+    if current_user.totp_enabled:
+        if not action or not action.totp_code:
+            raise HTTPException(status_code=400, detail="TOTP code required for admin approval")
+        if not current_user.totp_secret:
+            raise HTTPException(400, "TOTP not set up")
+        totp = pyotp.TOTP(current_user.totp_secret)
+        if not totp.verify(action.totp_code):
+            raise HTTPException(401, "Invalid TOTP code")
+    else:
+        # fallback to email OTP if no TOTP
+        if not action or not action.otp:
+            raise HTTPException(status_code=400, detail="OTP is required for approval")
+        otp_key = f"admin_otp:{current_user.id}:{request_id}"
+        if not verify_otp(otp_key, action.otp):
+            raise HTTPException(status_code=401, detail="Invalid or expired OTP")
 
     req = approve_request(db, request_id, current_user.id, action.notes if action else None)
     if not req:
@@ -384,12 +394,20 @@ async def reject_role_request(
     current_user: User = require_admin(),
     db: Session = Depends(get_db),
 ):
-    if not action or not action.otp:
-        raise HTTPException(status_code=400, detail="OTP is required for rejection")
-
-    otp_key = f"admin_otp:{current_user.id}:{request_id}"
-    if not verify_otp(otp_key, action.otp):
-        raise HTTPException(status_code=401, detail="Invalid or expired OTP")
+    if current_user.totp_enabled:
+        if not action or not action.totp_code:
+            raise HTTPException(status_code=400, detail="TOTP code required for admin rejection")
+        if not current_user.totp_secret:
+            raise HTTPException(400, "TOTP not set up")
+        totp = pyotp.TOTP(current_user.totp_secret)
+        if not totp.verify(action.totp_code):
+            raise HTTPException(401, "Invalid TOTP code")
+    else:
+        if not action or not action.otp:
+            raise HTTPException(status_code=400, detail="OTP is required for rejection")
+        otp_key = f"admin_otp:{current_user.id}:{request_id}"
+        if not verify_otp(otp_key, action.otp):
+            raise HTTPException(status_code=401, detail="Invalid or expired OTP")
 
     req = reject_request(db, request_id, current_user.id, action.notes if action else None)
     if not req:

@@ -58,6 +58,8 @@ class UserResponse(UserBase):
     id: int
     role: UserRole
     is_active: bool
+    mfa_enabled: bool
+    totp_enabled: bool
     created_at: datetime
     display_name: Optional[str] = None
     bio: Optional[str] = None
@@ -103,3 +105,20 @@ class SocialLinkRequest(BaseModel):
 
 class SocialUnlinkRequest(BaseModel):
     provider: str
+
+
+# TOTP / MFA schemas
+class TOTPSetupResponse(BaseModel):
+    secret: str
+    qr_code_url: str  # data URL for QR image
+    provisioning_uri: str
+
+
+class TOTPVerifyRequest(BaseModel):
+    code: str
+
+
+class LoginMFARequest(BaseModel):
+    username: str
+    password: str
+    totp_code: Optional[str] = None  # for second factor

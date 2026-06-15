@@ -65,16 +65,17 @@ export default function AdministratorDashboard() {
 
   const handleApproveRequest = async (id: number) => {
     const key = `approve-${id}`;
-    const otp = otpInputs[id] || "";
-    if (!otp) {
-      toast.error("Enter the OTP sent to your email for MFA approval");
+    const emailOtp = otpInputs[id] || "";
+    const totpCode = otpInputs[`totp-${id}`] || "";
+    if (!emailOtp && !totpCode) {
+      toast.error("Enter Email OTP or TOTP code for MFA approval");
       return;
     }
     setActionLoading(prev => ({ ...prev, [key]: true }));
     try {
       await axios.post(
         apiUrl(`/admin/role-requests/${id}/approve`),
-        { otp, notes: "" },
+        { otp: emailOtp, totp_code: totpCode, notes: "" },
         { headers: authHeaders() }
       );
       toast.success("Role request approved. User role updated.");
@@ -82,11 +83,11 @@ export default function AdministratorDashboard() {
       fetchUsers();
       refreshRole();
       setOtpInputs((prev) => {
-        const { [id]: _, ...rest } = prev;
+        const { [id]: _, [`totp-${id}`]: __, ...rest } = prev;
         return rest;
       });
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail || "Failed to approve (check OTP)");
+      toast.error(e?.response?.data?.detail || "Failed to approve (check OTP/TOTP)");
     } finally {
       setActionLoading((prev) => {
         const { [key]: _, ...rest } = prev;
@@ -97,26 +98,27 @@ export default function AdministratorDashboard() {
 
   const handleRejectRequest = async (id: number) => {
     const key = `reject-${id}`;
-    const otp = otpInputs[id] || "";
-    if (!otp) {
-      toast.error("Enter the OTP sent to your email for MFA rejection");
+    const emailOtp = otpInputs[id] || "";
+    const totpCode = otpInputs[`totp-${id}`] || "";
+    if (!emailOtp && !totpCode) {
+      toast.error("Enter Email OTP or TOTP code for MFA rejection");
       return;
     }
     setActionLoading((prev) => ({ ...prev, [key]: true }));
     try {
       await axios.post(
         apiUrl(`/admin/role-requests/${id}/reject`),
-        { otp, notes: "" },
+        { otp: emailOtp, totp_code: totpCode, notes: "" },
         { headers: authHeaders() }
       );
       toast.success("Request rejected.");
       fetchRoleRequests();
       setOtpInputs((prev) => {
-        const { [id]: _, ...rest } = prev;
+        const { [id]: _, [`totp-${id}`]: __, ...rest } = prev;
         return rest;
       });
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail || "Failed to reject (check OTP)");
+      toast.error(e?.response?.data?.detail || "Failed to reject (check OTP/TOTP)");
     } finally {
       setActionLoading((prev) => {
         const { [key]: _, ...rest } = prev;
@@ -448,7 +450,7 @@ export default function AdministratorDashboard() {
                     <div className="flex gap-1">
                       <input
                         type="text"
-                        placeholder="OTP"
+                        placeholder="Email OTP"
                         value={otpInputs[req.id] || ""}
                         onChange={(e) =>
                           setOtpInputs((prev) => ({ ...prev, [req.id]: e.target.value }))
@@ -471,8 +473,20 @@ export default function AdministratorDashboard() {
                         }}
                         className="text-xs px-2 py-0.5 rounded bg-white/10 hover:bg-white/20"
                       >
-                        Send OTP
+                        Send Email OTP
                       </button>
+                    </div>
+                    <div className="flex gap-1">
+                      <input
+                        type="text"
+                        placeholder="TOTP (Authenticator)"
+                        value={otpInputs[`totp-${req.id}`] || ""}
+                        onChange={(e) =>
+                          setOtpInputs((prev) => ({ ...prev, [`totp-${req.id}`]: e.target.value }))
+                        }
+                        className="text-xs px-2 py-0.5 rounded border border-white/10 bg-white/5 w-20"
+                        maxLength={6}
+                      />
                     </div>
                     <div className="flex gap-2">
                       <button
