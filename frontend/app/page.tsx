@@ -9,6 +9,7 @@ import BreakoutRoomModal, { BreakoutRoom } from '../components/BreakoutRoomModal
 import PresenceUserRow from '../components/PresenceUserRow';
 import { usePhase3 } from '../contexts/Phase3Context';
 import { usePresence } from '../contexts/RealtimeContext';
+import { useRole } from '../contexts/RoleContext';
 import SupervisorLiveTools from '../components/SupervisorLiveTools';
 import { apiUrl, authHeaders } from '../lib/api';
 import { getBreakoutRooms } from '../lib/breakoutRooms';
@@ -59,7 +60,8 @@ function StatusBadge({ status }: { status: string }) {
 export default function NovaDashboard() {
   const router = useRouter();
   const { onlineUsers, offlineUsers, connected, networkOnline } = usePresence();
-  const { overview, syncStatus, isHR, isAdmin, isSupervisor, currentRole } = usePhase3();
+  const { overview, syncStatus } = usePhase3();
+const { isHR, isAdmin, isSupervisor, currentRole } = useRole();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBreakTimer, setShowBreakTimer] = useState(false);

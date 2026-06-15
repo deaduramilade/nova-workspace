@@ -7,6 +7,7 @@ import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { SyncEngine } from '../lib/crdt/syncEngine';
 import { CRDTState, SyncStatus, SupervisorFeedback } from '../lib/crdt/types';
 import { FeedbackTool, SupervisorOverview } from '../lib/supervisorTypes';
+import { useRole } from './RoleContext';
 
 import { apiUrl, authHeaders as getAuthHeaders } from '../lib/api';
 
@@ -39,13 +40,7 @@ const Phase3Context = createContext<Phase3ContextValue | null>(null);
 
 const authHeaders = getAuthHeaders;
 
-function getUserRole(): string {
-  try {
-    const raw = localStorage.getItem('nova_user');
-    if (raw) return JSON.parse(raw).role ?? 'user';
-  } catch { /* ignore */ }
-  return 'user';
-}
+
 
 export function Phase3Provider({ children }: { children: React.ReactNode }) {
   const networkOnline = useNetworkStatus();
@@ -60,11 +55,8 @@ export function Phase3Provider({ children }: { children: React.ReactNode }) {
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(1);
   const engineRef = useRef<SyncEngine | null>(null);
 
-  const role = getUserRole();
-  const isSupervisor = overview?.is_supervisor ?? ['supervisor', 'admin', 'lead'].includes(role);
-  const isHR = ['hr', 'admin'].includes(role);
-  const isAdmin = role === 'admin';
-  const currentRole = role;
+  // Delegate role information to the dedicated global RoleProvider for consistency
+  const { currentRole, isAdmin, isHR, isSupervisor } = useRole();
 
   useEffect(() => {
     engineRef.current = new SyncEngine(activeWorkspaceId);
@@ -73,31 +65,6 @@ export function Phase3Provider({ children }: { children: React.ReactNode }) {
     });
     return unsub;
   }, [activeWorkspaceId, networkOnline]);
-
-  // Refresh current user profile from backend on load (ensures fresh role for role-based UI)
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (!token) return;
-
-    axios
-      .get(apiUrl('/users/me'), { headers: authHeaders() })
-      .then((res) => {
-        if (res.data) {
-          // Sync latest user (incl. role) to localStorage so getUserRole() and other UIs stay in sync
-          const prev = localStorage.getItem('nova_user');
-          let merged = res.data;
-          if (prev) {
-            try {
-              merged = { ...JSON.parse(prev), ...res.data };
-            } catch {}
-          }
-          localStorage.setItem('nova_user', JSON.stringify(merged));
-        }
-      })
-      .catch(() => {
-        /* ignore; fall back to cached localStorage role */
-      });
-  }, []);
 
   const refreshOverview = useCallback(async () => {
     const token = localStorage.getItem('access_token');
