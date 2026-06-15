@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRole } from '../contexts/RoleContext';
 import toast from 'react-hot-toast';
 
@@ -19,6 +19,22 @@ export default function RoleSwitcher() {
   } = useRole();
 
   const [requesting, setRequesting] = useState(false);
+  const [pendingRequest, setPendingRequest] = useState<any>(null);
+
+  // Listen for real-time WS updates about role requests (affects this user)
+  useEffect(() => {
+    const handleUpdate = (event: CustomEvent) => {
+      const msg = (event.detail?.message || "").toLowerCase();
+      if (msg.includes("role request") && msg.includes(realRole.toLowerCase() || "")) {
+        // Refresh or clear testing if approved for current user
+        // For demo, we can trigger a global refresh or just toast
+        toast("Role request status updated (real-time)", { icon: "🔄" });
+        // In full impl, refetch pending for this user
+      }
+    };
+    window.addEventListener("nova-supervisor-feedback", handleUpdate as EventListener);
+    return () => window.removeEventListener("nova-supervisor-feedback", handleUpdate as EventListener);
+  }, [realRole]);
 
   const handleSwitch = (role: string) => {
     if (role === realRole) {

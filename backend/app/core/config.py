@@ -89,6 +89,15 @@ class Settings(BaseSettings):
     # Password policy
     PASSWORD_MIN_LENGTH: int = 10
 
+    # Email / Notifications (for async emails and OTP MFA)
+    EMAIL_ENABLED: bool = True
+    SMTP_HOST: str = "localhost"
+    SMTP_PORT: int = 1025  # e.g. mailpit or mailhog for dev; 587 for prod
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    EMAIL_FROM: str = "noreply@novaworkspace.local"
+    EMAIL_USE_TLS: bool = False
+
     # Server / ops
     LOG_LEVEL: str = "INFO"
     UVICORN_WORKERS: int = 1

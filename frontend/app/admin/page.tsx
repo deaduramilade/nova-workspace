@@ -47,6 +47,7 @@ export default function AdministratorDashboard() {
   const [roleRequests, setRoleRequests] = useState<any[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [actionLoading, setActionLoading] = useState<{ [key: string]: boolean }>({});  // e.g., { 'approve-123': true }
+  const [otpInputs, setOtpInputs] = useState<{ [key: number]: string }>({});  // per request OTP for MFA
 
   const fetchRoleRequests = async () => {
     setLoadingRequests(true);
@@ -64,17 +65,30 @@ export default function AdministratorDashboard() {
 
   const handleApproveRequest = async (id: number) => {
     const key = `approve-${id}`;
+    const otp = otpInputs[id] || "";
+    if (!otp) {
+      toast.error("Enter the OTP sent to your email for MFA approval");
+      return;
+    }
     setActionLoading(prev => ({ ...prev, [key]: true }));
     try {
-      await axios.post(apiUrl(`/admin/role-requests/${id}/approve`), {}, { headers: authHeaders() });
-      toast.success('Role request approved. User role updated.');
+      await axios.post(
+        apiUrl(`/admin/role-requests/${id}/approve`),
+        { otp, notes: "" },
+        { headers: authHeaders() }
+      );
+      toast.success("Role request approved. User role updated.");
       fetchRoleRequests();
       fetchUsers();
-      refreshRole(); // in case the admin is viewing as someone else
+      refreshRole();
+      setOtpInputs((prev) => {
+        const { [id]: _, ...rest } = prev;
+        return rest;
+      });
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail || 'Failed to approve');
+      toast.error(e?.response?.data?.detail || "Failed to approve (check OTP)");
     } finally {
-      setActionLoading(prev => {
+      setActionLoading((prev) => {
         const { [key]: _, ...rest } = prev;
         return rest;
       });
@@ -83,15 +97,28 @@ export default function AdministratorDashboard() {
 
   const handleRejectRequest = async (id: number) => {
     const key = `reject-${id}`;
-    setActionLoading(prev => ({ ...prev, [key]: true }));
+    const otp = otpInputs[id] || "";
+    if (!otp) {
+      toast.error("Enter the OTP sent to your email for MFA rejection");
+      return;
+    }
+    setActionLoading((prev) => ({ ...prev, [key]: true }));
     try {
-      await axios.post(apiUrl(`/admin/role-requests/${id}/reject`), {}, { headers: authHeaders() });
-      toast.success('Request rejected.');
+      await axios.post(
+        apiUrl(`/admin/role-requests/${id}/reject`),
+        { otp, notes: "" },
+        { headers: authHeaders() }
+      );
+      toast.success("Request rejected.");
       fetchRoleRequests();
+      setOtpInputs((prev) => {
+        const { [id]: _, ...rest } = prev;
+        return rest;
+      });
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail || 'Failed to reject');
+      toast.error(e?.response?.data?.detail || "Failed to reject (check OTP)");
     } finally {
-      setActionLoading(prev => {
+      setActionLoading((prev) => {
         const { [key]: _, ...rest } = prev;
         return rest;
       });
@@ -123,6 +150,22 @@ export default function AdministratorDashboard() {
   useEffect(() => {
     fetchUsers();
     fetchRoleRequests();
+
+    // WebSocket real-time updates for role requests (via existing supervisor feedback channel)
+    const handleRealtimeUpdate = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (detail && (detail.message || "").toLowerCase().includes("role request")) {
+        // Refresh lists on relevant realtime events (submitted/approved/rejected)
+        fetchRoleRequests();
+        fetchUsers();
+      }
+    };
+
+    window.addEventListener("nova-supervisor-feedback", handleRealtimeUpdate as EventListener);
+
+    return () => {
+      window.removeEventListener("nova-supervisor-feedback", handleRealtimeUpdate as EventListener);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -401,21 +444,52 @@ export default function AdministratorDashboard() {
                       <span className="capitalize font-medium text-amber-300">{req.requested_role}</span>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleApproveRequest(req.id)}
-                      disabled={!!actionLoading[`approve-${req.id}`]}
-                      className="px-3 py-1 text-xs rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 disabled:opacity-50"
-                    >
-                      {actionLoading[`approve-${req.id}`] ? 'Approving...' : 'Approve & Apply'}
-                    </button>
-                    <button
-                      onClick={() => handleRejectRequest(req.id)}
-                      disabled={!!actionLoading[`reject-${req.id}`]}
-                      className="px-3 py-1 text-xs rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 disabled:opacity-50"
-                    >
-                      {actionLoading[`reject-${req.id}`] ? 'Rejecting...' : 'Reject'}
-                    </button>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex gap-1">
+                      <input
+                        type="text"
+                        placeholder="OTP"
+                        value={otpInputs[req.id] || ""}
+                        onChange={(e) =>
+                          setOtpInputs((prev) => ({ ...prev, [req.id]: e.target.value }))
+                        }
+                        className="text-xs px-2 py-0.5 rounded border border-white/10 bg-white/5 w-20"
+                        maxLength={6}
+                      />
+                      <button
+                        onClick={async () => {
+                          try {
+                            await axios.post(
+                              apiUrl("/admin/role-requests/send-otp"),
+                              { request_id: req.id },
+                              { headers: authHeaders() }
+                            );
+                            toast.success("OTP sent to your admin email");
+                          } catch (e: any) {
+                            toast.error(e?.response?.data?.detail || "Failed to send OTP");
+                          }
+                        }}
+                        className="text-xs px-2 py-0.5 rounded bg-white/10 hover:bg-white/20"
+                      >
+                        Send OTP
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleApproveRequest(req.id)}
+                        disabled={!!actionLoading[`approve-${req.id}`]}
+                        className="px-3 py-1 text-xs rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 disabled:opacity-50"
+                      >
+                        {actionLoading[`approve-${req.id}`] ? "Approving..." : "Approve & Apply"}
+                      </button>
+                      <button
+                        onClick={() => handleRejectRequest(req.id)}
+                        disabled={!!actionLoading[`reject-${req.id}`]}
+                        className="px-3 py-1 text-xs rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 disabled:opacity-50"
+                      >
+                        {actionLoading[`reject-${req.id}`] ? "Rejecting..." : "Reject"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

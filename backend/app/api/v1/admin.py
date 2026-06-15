@@ -3,15 +3,18 @@
 Only accessible to users with role == "admin".
 """
 
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 from typing import List, Optional, Any
 
 from app.core.auth import get_current_user, require_admin, require_role, ADMIN
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import hash_password
 from app.models.user import User
+from app.models.role_request import RoleRequest
 from app.schemas.user import UserResponse, UserRole
 from app.services.role_request_service import (
     create_role_request,
@@ -22,6 +25,13 @@ from app.services.role_request_service import (
 )
 from app.services.supervisor_manager import send_feedback
 from app.services.audit_service import log_role_change
+from app.services.email_service import (
+    send_role_change_notification,
+    send_otp_email,
+    generate_otp,
+    store_otp,
+    verify_otp,
+)
 
 router = APIRouter()
 
@@ -47,6 +57,11 @@ class RoleRequestCreate(BaseModel):
 
 class RoleRequestAction(BaseModel):
     notes: Optional[str] = None
+    otp: Optional[str] = None  # Required for MFA on approve/reject
+
+
+class SendOtpRequest(BaseModel):
+    request_id: int
 
 
 # All admin routes now use the centralized RBAC dependency
@@ -204,6 +219,35 @@ def request_role_change(
         raise HTTPException(status_code=400, detail="You already have this role")
 
     req = create_role_request(db, current_user.id, desired)
+
+    # Async email notification (non-blocking)
+    try:
+        asyncio.create_task(
+            send_role_change_notification(
+                to_email=current_user.email,
+                username=current_user.username,
+                requested_role=desired,
+                status="submitted",
+            )
+        )
+    except Exception:
+        pass
+
+    # WebSocket real-time update (via existing supervisor feedback channel)
+    # Requesters and admins listening will get realtime update
+    try:
+        await send_feedback(
+            supervisor="system",
+            supervisor_role="admin",
+            feedback_type="broadcast",
+            message=f"New role change request #{req.id} submitted by {current_user.username} for '{desired}'",
+            target_username=None,  # or specific admin usernames
+            workspace_id=1,
+            priority="normal",
+        )
+    except Exception:
+        pass
+
     return {
         "status": "request_submitted",
         "request_id": req.id,
@@ -233,6 +277,37 @@ def list_role_requests(
     return {"requests": result}
 
 
+@router.post("/role-requests/send-otp")
+async def send_approval_otp(
+    data: SendOtpRequest,
+    current_user: User = require_admin(),
+    db: Session = Depends(get_db),
+):
+    """Send email OTP to the admin for MFA on a specific role request approval/rejection."""
+    req = db.query(RoleRequest).filter(RoleRequest.id == data.request_id).first()  # type: ignore[attr-defined]
+    if not req or req.status != "pending":
+        raise HTTPException(status_code=404, detail="Pending request not found")
+
+    otp = generate_otp()
+    # Key by admin + request for security
+    otp_key = f"admin_otp:{current_user.id}:{data.request_id}"
+    store_otp(otp_key, otp)
+
+    sent = await send_otp_email(
+        to_email=current_user.email,
+        otp=otp,
+        purpose=f"role request approval (ID {data.request_id})",
+    )
+    if not sent and settings.EMAIL_ENABLED:
+        raise HTTPException(status_code=500, detail="Failed to send OTP email")
+
+    return {
+        "status": "otp_sent",
+        "message": "OTP sent to your email. It is valid for 10 minutes.",
+        "request_id": data.request_id,
+    }
+
+
 @router.post("/role-requests/{request_id}/approve")
 async def approve_role_request(
     request_id: int,
@@ -241,10 +316,18 @@ async def approve_role_request(
     db: Session = Depends(get_db),
 ):
     """Backend approval endpoint for RoleRequest.
+    Requires email OTP (MFA) for admin approvals.
     This permanently updates the user's role in the database.
     The requester will see the new role on next /users/me refresh or re-login
     (JWT claim will be updated on next token issuance).
     """
+    if not action or not action.otp:
+        raise HTTPException(status_code=400, detail="OTP is required for approval")
+
+    otp_key = f"admin_otp:{current_user.id}:{request_id}"
+    if not verify_otp(otp_key, action.otp):
+        raise HTTPException(status_code=401, detail="Invalid or expired OTP")
+
     req = approve_request(db, request_id, current_user.id, action.notes if action else None)
     if not req:
         raise HTTPException(status_code=404, detail="Request not found or already processed")
@@ -254,14 +337,38 @@ async def approve_role_request(
         await send_feedback(
             supervisor=current_user.username,
             supervisor_role=current_user.role,
-            feedback_type="praise",  # or custom, but reuse for delivery
+            feedback_type="praise",
             message=f"Your role has been approved and changed to '{req.requested_role}'. Please refresh or re-login to see updated permissions.",
             target_username=req.user.username,
-            workspace_id=1,  # general
+            workspace_id=1,
+            priority="normal",
+        )
+        # WebSocket real-time update for admins / listeners about the request status change
+        await send_feedback(
+            supervisor=current_user.username,
+            supervisor_role=current_user.role,
+            feedback_type="broadcast",
+            message=f"Role request #{request_id} APPROVED for {req.user.username} -> {req.requested_role}",
+            target_username=None,
+            workspace_id=1,
             priority="normal",
         )
     except Exception:
         pass  # non-fatal
+
+    # Also send async email notification
+    try:
+        asyncio.create_task(
+            send_role_change_notification(
+                to_email=req.user.email,
+                username=req.user.username,
+                requested_role=req.requested_role,
+                status="approved",
+                notes=action.notes,
+            )
+        )
+    except Exception:
+        pass
 
     return {
         "status": "approved",
@@ -277,6 +384,13 @@ async def reject_role_request(
     current_user: User = require_admin(),
     db: Session = Depends(get_db),
 ):
+    if not action or not action.otp:
+        raise HTTPException(status_code=400, detail="OTP is required for rejection")
+
+    otp_key = f"admin_otp:{current_user.id}:{request_id}"
+    if not verify_otp(otp_key, action.otp):
+        raise HTTPException(status_code=401, detail="Invalid or expired OTP")
+
     req = reject_request(db, request_id, current_user.id, action.notes if action else None)
     if not req:
         raise HTTPException(status_code=404, detail="Request not found or already processed")
@@ -291,6 +405,30 @@ async def reject_role_request(
             target_username=req.user.username,
             workspace_id=1,
             priority="normal",
+        )
+        # WebSocket real-time update
+        await send_feedback(
+            supervisor=current_user.username,
+            supervisor_role=current_user.role,
+            feedback_type="broadcast",
+            message=f"Role request #{request_id} REJECTED for {req.user.username}",
+            target_username=None,
+            workspace_id=1,
+            priority="normal",
+        )
+    except Exception:
+        pass
+
+    # Async email
+    try:
+        asyncio.create_task(
+            send_role_change_notification(
+                to_email=req.user.email,
+                username=req.user.username,
+                requested_role=req.requested_role,
+                status="rejected",
+                notes=action.notes,
+            )
         )
     except Exception:
         pass
