@@ -59,7 +59,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function NovaDashboard() {
   const router = useRouter();
   const { onlineUsers, offlineUsers, connected, networkOnline } = usePresence();
-  const { overview, syncStatus, isHR } = usePhase3();
+  const { overview, syncStatus, isHR, isAdmin } = usePhase3();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBreakTimer, setShowBreakTimer] = useState(false);
@@ -171,6 +171,12 @@ export default function NovaDashboard() {
               {isHR && (
                 <Link href="/hr" className="glass px-4 py-2 rounded-xl text-xs font-medium hidden sm:block hover:bg-white/10 transition-colors text-emerald-300">
                   HR Workspace
+                </Link>
+              )}
+
+              {isAdmin && (
+                <Link href="/admin" className="glass px-4 py-2 rounded-xl text-xs font-medium hidden sm:block hover:bg-white/10 transition-colors text-violet-300 border border-violet-400/30">
+                  Admin
                 </Link>
               )}
 

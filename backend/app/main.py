@@ -15,6 +15,7 @@ from app.core.request_limit_middleware import RequestSizeLimitMiddleware
 from app.core.security_middleware import SecurityHeadersMiddleware
 from app.core.startup_checks import run_startup_security_checks
 
+from app.api.v1.admin import router as admin_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.calls import router as calls_router
 from app.api.v1.chat import router as chat_router
@@ -84,6 +85,7 @@ app.include_router(files_router, prefix="/api/v1/files", tags=["files"])
 app.include_router(presence_router, prefix="/api/v1/presence", tags=["presence"])
 app.include_router(users_router, prefix="/api/v1/users", tags=["users"])
 app.include_router(hr_router, prefix="/api/v1/hr", tags=["hr"])
+app.include_router(admin_router, prefix="/api/v1/admin", tags=["admin"])
 
 
 def _health_payload() -> dict:
