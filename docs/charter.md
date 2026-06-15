@@ -1,8 +1,8 @@
 # Nova Project Charter
 
-**Version**: 2.2  
-**Phase**: 4 – Production Readiness & Polish (Complete)  
-**Date**: June 12, 2026
+**Version**: 3.1  
+**Phase**: Advanced Development (RBAC, Security & Meeting Intelligence)  
+**Date**: June 15, 2026  
 **Repository**: https://github.com/deaduramilade/nova-workspace  
 **License**: Apache-2.0
 
@@ -16,140 +16,164 @@
 
 Nova delivers a unified experience comparable to “Google Docs + VS Code + Cursor + Figma + Zoom”, but fully private, self-hostable, containerized, and AI-first.
 
-**Current Status (June 2026)**: The project has successfully completed Phase 4 (Production Readiness). Core features including working hours tracking, breakout rooms, break timer with binaural audio support, light team games, real-time user presence, supervisor oversight, and streaming integration are now implemented and functional.
+**Current Status (June 2026)**: The project has advanced beyond Phase 4 (Production Readiness). It now includes a mature **Role-Based Access Control (RBAC)** system, **Google Authenticator TOTP (2FA)**, comprehensive audit logging, meeting recording with AI-generated transcripts, and real-time collaboration features.
 
 ---
 
-## 2. Key Capabilities (Implemented)
+## 2. Key Capabilities
 
-- Real-time collaborative browser sessions via WebRTC streaming (Neko integration complete).
-- Working hours tracker with HR/salary calculation capability.
-- Breakout rooms for focused team discussions.
-- Break timer with binaural audio support for productivity breaks.
-- Light team games module for productive break time.
-- Real-time user presence and status system.
-- Supervisor oversight panel with live monitoring.
-- AI agents as first-class participants (foundation ready).
-- Isolated Docker containers for each participant.
-- Persistent storage and environment state.
-- Offline-first architecture with CRDT foundation.
-- Strong privacy, security, and compliance controls.
+### Core Collaboration Features
+- Real-time collaborative browser sessions via WebRTC (Neko)
+- Working hours tracker with supervisor visibility and HR reporting
+- Breakout rooms for focused team discussions
+- Break timer with binaural audio support
+- Light team game module for productive breaks
+- Personal Profile Settings (PFP upload + LinkedIn, X, Discord linking)
+- Mobile View Indicator for users on mobile devices
 
----
+### Role-Based Access Control (RBAC)
+- Five defined roles: **Worker**, **Supervisor**, **HR Personnel**, **Administrator**, and **AI Agent**
+- Role change request system with Administrator approval workflow
+- Audit logging for all role changes
+- Role-based API route guards and middleware
+- Pydantic validation for role enums
 
-## 3. Design & Architecture
+### Security & Authentication
+- JWT authentication with embedded role claims
+- Google Authenticator (TOTP) support for login
+- MFA enforcement for sensitive administrative actions (role approvals)
+- Failed access protection with forced data deletion
+- AES-256-GCM encryption for sensitive data
 
-- **Frontend**: Next.js 15 + TypeScript + Tailwind CSS with subtle Glassmorphism design. Progressive Web App ready.
-- **Backend**: Python 3.12 + FastAPI with rate limiting and production security hardening.
-- **Streaming Layer**: Neko WebRTC (fully integrated in workspace pages).
-- **AI Layer**: Ollama foundation with custom agent framework (ready for expansion).
-- **Orchestration**: Docker Compose with Oracle Cloud Always Free Tier profile (`docker-compose.oracle.yml`).
-- **Data Layer**: PostgreSQL + Redis.
-- **Real-time**: WebSocket + CRDT foundation for offline synchronization.
-- **Security**: Rate limiting, environment-based configuration, AES-256 encryption support.
+### Meeting & Documentation Intelligence
+- Meeting recording initiation
+- AI-generated meeting transcripts
+- Automated executive meeting report generation
+- Automated dissemination of reports via email and workspace group chat to absent participants
 
----
+### Real-time & Notification Systems
+- WebSocket real-time updates for role requests and approvals
+- Async email notifications for role change approvals and rejections
+- In-app notification system
 
-## 4. Security, Privacy, Compliance, Resilience, and Accessibility
-
-### 4.1 Security and Privacy Framework
-
-- **Data Retention**: Ephemeral workspace data, session logs, AI interactions, and temporary files are retained for a maximum of 7 days. Automatic, silent deletion occurs after this period.
-- **Encryption**: All sensitive data at rest is protected with AES-256-GCM encryption. Keys are derived securely (Argon2).
-- **Failed Access Protection**: After 5 consecutive failed attempts, the system triggers immediate forced deletion of all locally stored sensitive data.
-- **False-Positive Recovery**: Server-side encrypted versioned backups allow authorized recovery.
-- **Zero-Trust Architecture**: Continuous verification, mandatory MFA support, RBAC + ABAC.
-- **Audit & Isolation**: Comprehensive logging and strict container isolation (seccomp/AppArmor).
-
-### 4.2 Offline-First Resilience
-
-- Full functionality available during network outages.
-- Local persistence via encrypted storage and Docker volumes.
-- CRDT foundation implemented for automatic, non-disruptive background synchronization.
-- Subtle status indicators only — no workflow disruption.
-
-### 4.3 Global Compliance Standards
-
-Nova is designed for worldwide enterprise adoption:
-- GDPR, CCPA/CPRA, ISO 27001/27701, SOC 2.
-- Support for DPDP Act (India) and other regional regulations.
-- Automated Privacy Impact Assessments and compliance reporting ready.
-
-### 4.4 Resource Efficiency and Accessibility
-
-- Optimized for devices with 4GB RAM or lower.
-- **Oracle Always Free compact profile**: ~1.6 GB container RAM budget (12 GB VM).
-- Low-data mode with delta synchronization and adaptive streaming.
-- Designed for broad accessibility on entry-level hardware and metered/unstable connections.
+### Offline & Resource Efficiency
+- Offline-first architecture with CRDT synchronization
+- Optimized for low-memory and low-data environments
+- Production deployment support for Oracle Cloud Always Free Tier
 
 ---
 
-## 5. Implemented Features (Phase 4 Complete)
+## 3. Roles and Responsibilities
 
-- Working hours tracker with supervisor visibility.
-- Breakout room creation and management.
-- Break timer with binaural audio support.
-- Light team game module (Memory Match) for break productivity.
-- Real-time online users sidebar with status and weather context.
-- Supervisor oversight panel with live monitoring.
-- Neko streaming integration in workspace pages.
-- Security hardening (rate limiting, secure configuration).
-- CRDT foundation for offline sync.
-- Production deployment guide (`docs/deployment.md`) with Oracle Free Tier quick start.
-- Oracle-tuned compose stack, env templates, `deploy/oracle-setup.sh`, and full `deploy/*.sh` script suite.
+| Role                    | Access Level   | Primary Responsibilities                              | AI Assistant      |
+|-------------------------|----------------|-------------------------------------------------------|-------------------|
+| **Worker**              | Standard       | Daily collaboration and task execution                | Nova Worker       |
+| **Supervisor**          | Elevated       | Team oversight, monitoring, and feedback              | Nova Supervisor   |
+| **HR Personnel**        | Elevated       | Work log management, attendance, and reporting        | Nova HR           |
+| **Administrator**       | Highest        | User management, role governance, and system config   | Nova Admin        |
+| **AI Agent**            | Participant    | Collaborative task execution within workspaces        | —                 |
+
+Each role has access to a dedicated, context-aware AI assistant triggered by typing **“Nova”** in the workspace chat.
 
 ---
 
-## 6. Workflow
+## 4. Design & Architecture
 
-1. User creates or joins a Workspace via the dashboard.
-2. Isolated Docker containers are provisioned.
-3. Users join via browser for real-time collaboration and streaming.
-4. Working hours are automatically tracked.
-5. Breakout rooms and break timer are available for team productivity.
-6. Supervisor can monitor live status and send feedback.
-7. All actions support offline mode with automatic sync.
-
----
-
-## 7. Strengths & Unique Value
-
-- Eliminates AI collaboration friction by placing agents directly in the shared environment.
-- Strong privacy and sovereignty through self-hosting.
-- Superior developer experience compared to existing cloud tools.
-- Designed for global accessibility and enterprise trust.
-- Apache-2.0 licensed for maximum community growth.
-- Production-ready with security hardening and deployment guides.
+- **Frontend**: Next.js 15 + TypeScript + Tailwind CSS with subtle Glassmorphism
+- **Backend**: Python 3.12 + FastAPI + SQLAlchemy + Alembic
+- **Streaming**: Neko WebRTC
+- **Database**: PostgreSQL + Redis
+- **Authentication**: JWT + TOTP (Google Authenticator)
+- **Real-time**: WebSocket
+- **Deployment**: Docker Compose (with Oracle Cloud Always Free profile)
 
 ---
 
-## 8. Licensing, Updates, and Governance
+## 5. Security, Privacy, Compliance, and Governance
 
-- **License**: Apache-2.0 – Fully open and free core.
-- **Updates**: Built-in notifications and one-click upgrades for Docker Compose.
-- **Governance**: Community contributions encouraged with Contributor License Agreement (CLA) for significant changes.
+### 5.1 Security Framework
+- **Data Retention**: 7-day automatic silent deletion for ephemeral data
+- **Encryption**: AES-256-GCM with Argon2 key derivation
+- **Access Control**: Role-Based Access Control (RBAC) with audit logging
+- **Authentication**: JWT with role claims + optional TOTP 2FA
+- **MFA Enforcement**: Required for high-privilege actions (role approvals)
 
----
+### 5.2 Privacy & Compliance
+- Designed for GDPR, CCPA/CPRA, ISO 27001/27701, and SOC 2 alignment
+- Zero-Trust principles with continuous verification
+- Automated Privacy Impact Assessments ready
 
-## 9. Target Users and Monetization
-
-- **Primary Users**: Indie hackers, AI researchers, development teams, educators, and enterprises seeking private AI collaboration.
-- **Growth Strategy**: Open core for rapid adoption via GitHub, LinkedIn, Hugging Face, and X.
-- **Monetization**: Core remains free. Revenue from sponsorships, premium support, managed hosting, and enterprise tiers after reaching scale.
-
----
-
-## 10. Risks & Mitigations
-
-- Loss of coherence across models → Use this charter as prefix in every session.
-- Over-scoping → Strict focus on single-host Docker Compose in early phases.
-- WebRTC complexity → Started with Neko, production migration path to Selkies ready.
-- Security & Privacy risks → Addressed through layered controls and compliance alignment.
+### 5.3 Governance
+- Role change requests require explicit Administrator approval
+- All role changes are logged in the Audit Log
+- Strong separation between testing role switches and permanent changes
 
 ---
 
-**This document serves as the single source of truth for the Nova project.**
+## 6. Implemented Features
 
-It integrates the foundational vision with all implemented features up to Phase 4 (Production Readiness), including security, privacy, offline capabilities, compliance, resource efficiency, and accessibility.
+- Working hours tracker with HR reporting capability
+- Breakout rooms and Break Timer with binaural audio
+- Light team games for break productivity
+- Real-time user presence and Supervisor Oversight Panel
+- Full RBAC system with role approval workflow
+- Google Authenticator TOTP (2FA) for login and admin actions
+- Meeting recording with AI-generated transcripts and executive reports
+- WebSocket real-time updates and async email notifications
+- Profile Settings with social account linking
+- Dedicated HR Workspace and Admin Dashboard
+- Production-ready deployment configurations (including Oracle Free Tier)
 
 ---
+
+## 7. Workflow
+
+1. User authenticates with optional TOTP 2FA.
+2. Users operate within defined roles with specific permissions.
+3. Role changes require Administrator approval (with TOTP verification).
+4. All role changes are recorded in the Audit Log.
+5. Users and AI agents collaborate inside isolated Docker workspaces.
+6. Meetings can be recorded with AI-generated transcripts and reports.
+7. Reports are automatically distributed to absent participants via email and workspace chat.
+8. All actions support offline mode with CRDT synchronization.
+
+---
+
+## 8. Strengths & Unique Value
+
+- Strong **governance and accountability** through RBAC, audit logging, and approval workflows
+- **Context-aware AI assistance** tailored to each user’s role
+- Secure and automated **meeting documentation** with transcription and distribution
+- Privacy-first, self-hostable architecture
+- Production-ready security (TOTP + RBAC + Audit Logging)
+- Designed for both enterprise compliance and agile team collaboration
+
+---
+
+## 9. Licensing, Updates, and Governance
+
+- **License**: Apache-2.0 – Fully open core
+- **Updates**: One-click Docker Compose upgrades supported
+- **Governance**: Community contributions encouraged with CLA for significant changes
+
+---
+
+## 10. Target Users and Monetization
+
+- **Primary Users**: Development teams, AI researchers, enterprises, educational institutions, and remote/hybrid teams
+- **Growth Strategy**: Open core via GitHub, LinkedIn, Hugging Face, and X
+- **Monetization**: Core remains free. Revenue from sponsorships, premium support, and enterprise tiers
+
+---
+
+## 11. Risks & Mitigations
+
+- Loss of project coherence → This charter is used as the single source of truth
+- Security & compliance risks → Addressed through RBAC, TOTP, audit logging, and layered controls
+- Over-scoping → Strict focus on core collaboration, governance, and meeting intelligence
+
+---
+
+**This document serves as the single source of truth for the Nova Workspace project.**
+
+This integrates the original vision with all implemented features, including advanced Role-Based Access Control, Two-Factor Authentication, meeting intelligence, and real-time governance capabilities.
