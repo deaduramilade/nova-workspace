@@ -36,6 +36,8 @@ from app.models.workspace import Workspace  # noqa: F401
 from app.models.file import UploadedFile  # noqa: F401
 from app.models.role_request import RoleRequest  # noqa: F401
 from app.models.audit_log import AuditLog  # noqa: F401
+from app.models.memory_chunk import MemoryChunk  # noqa: F401
+from app.models.action_item import ActionItem  # noqa: F401
 
 # Planned / future models (see backend-api-plan.md and charter AI agent support).
 # Uncomment and add when the corresponding model files define tables:
