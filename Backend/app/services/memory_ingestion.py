@@ -18,6 +18,7 @@ from app.models.memory_chunk import MemoryChunk, ChunkType
 from app.models.action_item import ActionItem, ActionItemStatus
 from app.models.user import User
 from app.models.workspace import Workspace
+from app.models.workspace_assignment_rule import WorkspaceAssignmentRule, AssignmentRuleType
 
 
 class MemoryIngestionError(Exception):
@@ -112,20 +113,32 @@ async def ingest_meeting_transcript(
                 },
             )
             if chunk:
-                # Try to create associated ActionItem if assignee found
+                assigned_user = None
+                
+                # First, try to find user by mentioned name in transcript
                 assignee_name = action_item_data.get("assigned_to")
                 if assignee_name:
                     assigned_user = db.query(User).filter(
                         User.username.ilike(assignee_name)
                     ).first()
-                    if assigned_user:
-                        action_item = ActionItem(
-                            memory_chunk_id=chunk.id,
-                            assigned_to_user_id=assigned_user.id,
-                            description=action_item_data.get("description", ""),
-                            status=ActionItemStatus.OPEN,
-                        )
-                        db.add(action_item)
+                
+                # If no explicit assignment, apply workspace assignment rules
+                if not assigned_user:
+                    assigned_user = await _apply_assignment_rules(
+                        db=db,
+                        workspace_id=workspace_id,
+                        action_description=action_item_data.get("description", ""),
+                    )
+                
+                # Create ActionItem if we have an assigned user
+                if assigned_user:
+                    action_item = ActionItem(
+                        memory_chunk_id=chunk.id,
+                        assigned_to_user_id=assigned_user.id,
+                        description=action_item_data.get("description", ""),
+                        status=ActionItemStatus.OPEN,
+                    )
+                    db.add(action_item)
                 
                 created_chunks.append(chunk)
         
@@ -266,44 +279,106 @@ async def _store_memory_chunk(
         return None
 
 
-async def _generate_embedding(text: str) -> Optional[List[float]]:
+async def _apply_assignment_rules(
+    db: Session,
+    workspace_id: int,
+    action_description: str,
+) -> Optional[User]:
     """
-    Generate embedding for text using Ollama embeddings endpoint.
-    Uses nomic-embed-text model (768 dimensions, pads to 1536 for compatibility).
+    Apply workspace assignment rules to find the best user for an action item.
+    
+    Rules are evaluated in priority order (highest first).
+    Conditions are checked to see if the rule applies to this action item.
     
     Args:
-        text: Text to embed
+        db: Database session
+        workspace_id: Workspace ID
+        action_description: Description of the action item
     
     Returns:
-        Embedding vector (1536 dimensions) or None if failed
+        User to assign to, or None if no rule matches
     """
-    if not settings.OLLAMA_ENABLED:
-        return None
-    
     try:
-        client = ollama.Client(host=settings.OLLAMA_URL)
+        # Get all enabled assignment rules for this workspace, ordered by priority
+        rules = db.query(WorkspaceAssignmentRule).filter(
+            WorkspaceAssignmentRule.workspace_id == workspace_id,
+            WorkspaceAssignmentRule.enabled == True,
+        ).order_by(WorkspaceAssignmentRule.priority.desc()).all()
         
-        # Use nomic-embed-text for embeddings (768-dim)
-        # Falls back gracefully if model not available
-        response = client.embeddings(
-            model="nomic-embed-text",
-            prompt=text,
-        )
-        
-        if response and "embedding" in response:
-            embedding = response["embedding"]
-            # Normalize to 1536 dimensions (pad with zeros for compatibility)
-            if len(embedding) < 1536:
-                embedding = embedding + [0.0] * (1536 - len(embedding))
-            elif len(embedding) > 1536:
-                embedding = embedding[:1536]
-            return embedding
+        for rule in rules:
+            # Check if conditions match
+            if not _matches_rule_conditions(rule, action_description):
+                continue
+            
+            # Apply rule based on type
+            if rule.rule_type == AssignmentRuleType.ROLE_BASED and rule.target_role:
+                # Find first user with target role
+                user = db.query(User).filter(User.role == rule.target_role).first()
+                if user:
+                    return user
+            
+            elif rule.rule_type == AssignmentRuleType.USER_SPECIFIC and rule.target_user_id:
+                # Assign to specific user
+                user = db.query(User).filter(User.id == rule.target_user_id).first()
+                if user:
+                    return user
+            
+            elif rule.rule_type == AssignmentRuleType.ROUND_ROBIN:
+                # Get list of user IDs from criteria and rotate
+                user_ids = rule.criteria.get("user_ids", []) if rule.criteria else []
+                if user_ids:
+                    # Simple round-robin: pick first available user
+                    # TODO: Enhance with actual round-robin state tracking
+                    user = db.query(User).filter(User.id.in_(user_ids)).first()
+                    if user:
+                        return user
+            
+            elif rule.rule_type == AssignmentRuleType.CUSTOM:
+                # Custom assignment logic can be defined in criteria
+                # For now, just use it as a note
+                if rule.target_user_id:
+                    user = db.query(User).filter(User.id == rule.target_user_id).first()
+                    if user:
+                        return user
         
         return None
     
     except Exception as e:
-        print(f"[WARN] Embedding generation failed: {e}")
+        print(f"[WARN] Failed to apply assignment rules: {e}")
         return None
+
+
+def _matches_rule_conditions(rule: WorkspaceAssignmentRule, action_description: str) -> bool:
+    """
+    Check if an action item matches the conditions of an assignment rule.
+    
+    Args:
+        rule: WorkspaceAssignmentRule to check
+        action_description: Description of the action item
+    
+    Returns:
+        True if conditions match, False otherwise
+    """
+    if not rule.conditions:
+        return True
+    
+    conditions = rule.conditions
+    description_lower = action_description.lower()
+    
+    # Check include keywords
+    if "keywords" in conditions:
+        keywords = conditions["keywords"]
+        if keywords and not any(kw.lower() in description_lower for kw in keywords):
+            return False
+    
+    # Check exclude keywords
+    if "exclude_keywords" in conditions:
+        exclude_keywords = conditions["exclude_keywords"]
+        if exclude_keywords and any(kw.lower() in description_lower for kw in exclude_keywords):
+            return False
+    
+    # All conditions match
+    return True
 
 
 def retrieve_memory_chunks_by_role(
