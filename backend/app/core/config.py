@@ -86,6 +86,12 @@ class Settings(BaseSettings):
     NEKO_PASSWORD: str = "nova"
     NEKO_ADMIN_PASSWORD: str = "admin"
 
+    # Ollama LLM / AI (local model inference)
+    OLLAMA_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "mistral"  # or "neural-chat", "orca-mini", etc.
+    OLLAMA_ENABLED: bool = True
+    MEMORY_INGESTION_ENABLED: bool = True
+
     # Password policy
     PASSWORD_MIN_LENGTH: int = 10
 
