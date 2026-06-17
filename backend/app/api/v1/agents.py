@@ -1,10 +1,15 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Body
 from pydantic import BaseModel
 from typing import Optional
 import requests
+import re
 
 from app.core.auth import get_current_user
+from app.core.config import settings
+from app.core.database import get_db
 from app.models.user import User
+from app.models.memory_chunk import MemoryChunk
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -17,6 +22,51 @@ class ChatRequest(BaseModel):
     persona: Optional[str] = "general"  # general | supervisor | hr | admin | workspace
     room_id: Optional[str] = None
     context: Optional[str] = None  # additional hints
+    workspace_id: Optional[int] = None  # for memory queries
+
+
+def _is_memory_query(query: str) -> bool:
+    """
+    Detect if this query is asking for memory/workspace intelligence.
+    
+    Patterns:
+    - "memory:" prefix
+    - "ask memory" or "query memory"
+    - "tell me about", "what about", "when did" (context-dependent)
+    - "remember", "recall", "find in memory"
+    """
+    q = query.lower().strip()
+    
+    memory_triggers = [
+        r"^\s*memory\s*:",
+        r"^ask\s+memory",
+        r"^query\s+memory",
+        r"^search\s+memory",
+        r"remember\s+",
+        r"recall\s+",
+        r"tell\s+me\s+about\s+\w+\s+(from\s+)?(memory|meeting|transcript)",
+        r"what\s+about\s+\w+\s+(from\s+)?(memory|meeting|decision)",
+        r"when\s+did\s+we\s+(decide|discuss)\s+",
+        r"what\s+decisions?\s+(were\s+)?made",
+        r"find\s+in\s+memory",
+    ]
+    
+    for pattern in memory_triggers:
+        if re.search(pattern, q):
+            return True
+    
+    return False
+
+
+def _extract_memory_query(query: str) -> str:
+    """
+    Extract clean query text from memory command.
+    Removes prefixes like "memory:" or "ask memory:".
+    """
+    q = query.strip()
+    # Remove common prefixes
+    q = re.sub(r"^(memory|ask memory|query memory|search memory|remember)\s*:?\s*", "", q, flags=re.IGNORECASE)
+    return q.strip()
 
 
 def _get_system_prompt(persona: str, user: User, room_id: Optional[str]) -> str:
@@ -94,13 +144,34 @@ def _mock_response(persona: str, query: str, user: User) -> str:
 async def chat_with_nova(
     body: ChatRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """Role- and context-aware AI chat. Triggered from the frontend when the user types 'Nova ...' in chat."""
+    """Role- and context-aware AI chat. Triggered from the frontend when the user types 'Nova ...' in chat.
+    
+    Also supports memory queries:
+    - "Nova memory: what decisions were made?"
+    - "Nova ask memory about project X"
+    - "Nova recall when we decided on..."
+    """
     persona = body.persona or "general"
     query = (body.query or "").strip()
+    workspace_id = body.workspace_id
+    
     if not query:
         return {"response": "Hi! How can Nova help?", "from": f"Nova ({persona})"}
-
+    
+    # Check if this is a memory query
+    if _is_memory_query(query):
+        # Extract clean query and handle memory query
+        memory_query = _extract_memory_query(query)
+        return await _handle_memory_query(
+            memory_query=memory_query,
+            current_user=current_user,
+            workspace_id=workspace_id,
+            db=db,
+        )
+    
+    # Regular Nova chat (non-memory)
     system_prompt = _get_system_prompt(persona, current_user, body.room_id)
 
     # Try real Ollama (non-streaming generate for simplicity)
@@ -132,6 +203,102 @@ async def chat_with_nova(
         "from": f"Nova ({persona.title()})",
         "mock": True,
     }
+
+
+async def _handle_memory_query(
+    memory_query: str,
+    current_user: User,
+    workspace_id: Optional[int],
+    db: Session,
+) -> dict:
+    """
+    Handle memory query by calling the memory/query endpoint.
+    
+    Args:
+        memory_query: Cleaned query text
+        current_user: Current user
+        workspace_id: Workspace to query (optional)
+        db: Database session
+    
+    Returns:
+        Response dict with memory query results
+    """
+    if not memory_query:
+        return {
+            "response": "Please specify what you'd like to know from workspace memory.",
+            "from": "Nova (Memory)",
+            "type": "memory",
+        }
+    
+    if not workspace_id:
+        return {
+            "response": "I need a workspace context to search memory. Please specify workspace_id or ask from within a workspace.",
+            "from": "Nova (Memory)",
+            "type": "memory",
+        }
+    
+    try:
+        from app.services.semantic_search import (
+            generate_query_embedding,
+            hybrid_search,
+        )
+        
+        # Generate embedding for query
+        query_embedding = await generate_query_embedding(memory_query)
+        
+        # Perform search
+        search_results = hybrid_search(
+            db=db,
+            workspace_id=workspace_id,
+            query=memory_query,
+            query_embedding=query_embedding,
+            current_user=current_user,
+            limit=5,
+        )
+        
+        if not search_results:
+            return {
+                "response": "I couldn't find relevant information in the workspace memory. No matching records found.",
+                "from": "Nova (Memory)",
+                "type": "memory",
+                "sources": [],
+            }
+        
+        # Generate answer from LLM
+        sources_text = "\n\n".join([
+            f"[{result.chunk.chunk_type.value}] {result.chunk.content[:200]}"
+            for result in search_results
+        ])
+        
+        from app.api.v1.memory import _generate_memory_answer
+        answer = await _generate_memory_answer(
+            user_query=memory_query,
+            sources_text=sources_text,
+            user_role=current_user.role,
+        )
+        
+        return {
+            "response": answer,
+            "from": "Nova (Memory)",
+            "type": "memory",
+            "sources": [
+                {
+                    "type": result.chunk.chunk_type.value,
+                    "preview": result.chunk.content[:150],
+                    "similarity": result.similarity,
+                }
+                for result in search_results
+            ],
+            "source_count": len(search_results),
+        }
+    
+    except Exception as e:
+        return {
+            "response": f"Memory query failed: {str(e)}",
+            "from": "Nova (Memory)",
+            "type": "memory",
+            "error": True,
+        }
 
 
 @router.post("/invite")

@@ -268,24 +268,42 @@ async def _store_memory_chunk(
 
 async def _generate_embedding(text: str) -> Optional[List[float]]:
     """
-    Generate embedding for text using Ollama.
-    Note: Embedding support in Ollama is limited; this is a stub for future use.
+    Generate embedding for text using Ollama embeddings endpoint.
+    Uses nomic-embed-text model (768 dimensions, pads to 1536 for compatibility).
     
     Args:
         text: Text to embed
     
     Returns:
-        Embedding vector or None
+        Embedding vector (1536 dimensions) or None if failed
     """
+    if not settings.OLLAMA_ENABLED:
+        return None
+    
     try:
-        # Ollama doesn't have native embeddings in all models yet
-        # For now, we'll store None; in production, consider using a dedicated service
-        # or use LLaMA's embedding via ollama.embeddings if available
-        pass
+        client = ollama.Client(host=settings.OLLAMA_URL)
+        
+        # Use nomic-embed-text for embeddings (768-dim)
+        # Falls back gracefully if model not available
+        response = client.embeddings(
+            model="nomic-embed-text",
+            prompt=text,
+        )
+        
+        if response and "embedding" in response:
+            embedding = response["embedding"]
+            # Normalize to 1536 dimensions (pad with zeros for compatibility)
+            if len(embedding) < 1536:
+                embedding = embedding + [0.0] * (1536 - len(embedding))
+            elif len(embedding) > 1536:
+                embedding = embedding[:1536]
+            return embedding
+        
+        return None
+    
     except Exception as e:
         print(f"[WARN] Embedding generation failed: {e}")
-    
-    return None
+        return None
 
 
 def retrieve_memory_chunks_by_role(

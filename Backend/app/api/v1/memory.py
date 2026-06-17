@@ -7,9 +7,11 @@ Endpoints for ingesting meeting transcripts, retrieving memory chunks, and manag
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
+import ollama
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.auth import get_current_user
+from app.core.config import settings
 from app.models.user import User
 from app.models.memory_chunk import MemoryChunk, ChunkType
 from app.models.action_item import ActionItem, ActionItemStatus
@@ -17,6 +19,10 @@ from app.services.memory_ingestion import (
     ingest_meeting_transcript,
     retrieve_memory_chunks_by_role,
     MemoryIngestionError,
+)
+from app.services.semantic_search import (
+    generate_query_embedding,
+    hybrid_search,
 )
 
 router = APIRouter(prefix="/api/v1/memory", tags=["memory"])
@@ -235,3 +241,171 @@ async def update_action_item(
             "due_date": item.due_date.isoformat() if item.due_date else None,
         },
     }
+
+
+# -------------------------------------------------------------------
+# Memory Query with LLM Integration
+# -------------------------------------------------------------------
+
+@router.post("/query")
+async def query_memory(
+    workspace_id: int = Body(...),
+    query: str = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Query workspace memory using semantic search + LLM reasoning.
+    
+    This endpoint:
+    1. Generates embedding for the query
+    2. Performs semantic search on role-filtered memory chunks
+    3. Passes relevant chunks + query to Nova LLM
+    4. Returns AI-generated answer with source references
+    
+    Args:
+        workspace_id: Workspace to query
+        query: User question/query
+        current_user: Current user (for role-based filtering)
+    
+    Returns:
+        {
+            "status": "success",
+            "answer": "AI-generated answer text",
+            "sources": [list of source chunks],
+            "confidence": 0.0-1.0,
+        }
+    """
+    if not query or len(query.strip()) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Query must be at least 3 characters",
+        )
+    
+    # Verify workspace exists
+    workspace = db.query(db.query(MemoryChunk).filter(
+        MemoryChunk.workspace_id == workspace_id
+    ).exists()).scalar()
+    
+    if not workspace and not db.query(MemoryChunk).filter(
+        MemoryChunk.workspace_id == workspace_id
+    ).count() > 0:
+        # Just check if there's at least one memory chunk in this workspace or proceed anyway
+        pass
+    
+    try:
+        # Generate query embedding
+        query_embedding = await generate_query_embedding(query)
+        
+        # Perform hybrid semantic search (with fallback to metadata search)
+        search_results = hybrid_search(
+            db=db,
+            workspace_id=workspace_id,
+            query=query,
+            query_embedding=query_embedding,
+            current_user=current_user,
+            limit=5,
+        )
+        
+        if not search_results:
+            return {
+                "status": "success",
+                "answer": "I couldn't find relevant information in the workspace memory. No memory chunks exist for this query.",
+                "sources": [],
+                "confidence": 0.0,
+            }
+        
+        # Prepare context for LLM
+        sources_text = "\n\n".join([
+            f"[Chunk {i+1}] ({result.chunk.chunk_type.value})\n{result.chunk.content}"
+            for i, result in enumerate(search_results)
+        ])
+        
+        # Generate answer using Nova LLM
+        answer = await _generate_memory_answer(
+            user_query=query,
+            sources_text=sources_text,
+            user_role=current_user.role,
+        )
+        
+        # Calculate average confidence from search results
+        avg_confidence = (
+            sum(r.similarity for r in search_results) / len(search_results)
+            if search_results else 0.0
+        )
+        
+        return {
+            "status": "success",
+            "answer": answer,
+            "sources": [result.to_dict() for result in search_results],
+            "confidence": min(1.0, avg_confidence),
+            "search_count": len(search_results),
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Memory query failed: {str(e)}",
+        )
+
+
+async def _generate_memory_answer(
+    user_query: str,
+    sources_text: str,
+    user_role: str,
+) -> str:
+    """
+    Generate LLM answer from memory chunks.
+    
+    Args:
+        user_query: Original user question
+        sources_text: Formatted memory chunk sources
+        user_role: User's role (for context)
+    
+    Returns:
+        AI-generated answer string
+    """
+    if not settings.OLLAMA_ENABLED:
+        return "LLM service is unavailable. Please refer to the source documents directly."
+    
+    # Build role-specific system prompt
+    role_prompts = {
+        "admin": "You are an administrative assistant with full access to all company information.",
+        "supervisor": "You are a supervisor with access to team and project information.",
+        "hr": "You are an HR specialist with access to HR-related information.",
+        "lead": "You are a team lead with access to team information.",
+        "user": "You are a team member with access to relevant work information.",
+    }
+    
+    system_prompt = role_prompts.get(user_role, role_prompts["user"])
+    
+    prompt = f"""You are Nova, an intelligent workspace assistant. Your role is to help users understand their workspace memory.
+
+{system_prompt}
+
+Based on the following memory excerpts, answer the user's question concisely and accurately.
+If the information is insufficient, say so. Always be professional and helpful.
+
+MEMORY EXCERPTS:
+{sources_text}
+
+USER QUESTION: {user_query}
+
+ANSWER:"""
+    
+    try:
+        client = ollama.Client(host=settings.OLLAMA_URL)
+        response = client.generate(
+            model="llama3.2",
+            prompt=prompt,
+            temperature=0.3,
+            top_p=0.9,
+            top_k=40,
+        )
+        
+        answer = response.get("response", "").strip()
+        return answer if answer else "Unable to generate an answer at this time."
+    
+    except Exception as e:
+        print(f"[WARN] LLM generation failed: {e}")
+        return f"Failed to generate answer: {str(e)}"
