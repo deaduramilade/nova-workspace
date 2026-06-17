@@ -116,6 +116,39 @@ def get_workspace_download_path(record: UploadedFile) -> Optional[str]:
         return None
     return f"/files/workspace/{record.workspace_id}/download/{record.stored_filename}"
 
+def delete_file(db: Session, file_id: str, uploader: User) -> None:
+    """Delete a file by owner. Removes both DB record and physical file.
+    
+    Args:
+        db: Database session
+        file_id: The stored filename (UploadedFile.id)
+        uploader: Current user (must be the file owner)
+        
+    Raises:
+        HTTPException 404: File not found
+        HTTPException 403: User is not the file owner
+    """
+    record = get_record(db, file_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    if record.uploader_id != uploader.id:
+        raise HTTPException(status_code=403, detail="Only the file owner can delete this file")
+    
+    # Delete physical file from disk
+    try:
+        p = UPLOAD_DIR / record.stored_filename
+        if p.exists():
+            p.unlink()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to delete file from storage: {exc}"
+        )
+    
+    # Delete database record
+    db.delete(record)
+    db.commit()
 
 def serialize(record: UploadedFile) -> dict:
     """Shape returned to frontend (frontend will turn paths into usable URLs via apiUrl)."""

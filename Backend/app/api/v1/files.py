@@ -22,6 +22,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.services.file_storage import (
     UPLOAD_DIR,
+    delete_file,
     get_record,
     list_for_workspace,
     save_upload,
@@ -156,3 +157,39 @@ def list_recent_uploads(current_user: User = Depends(get_current_user), db: Sess
                 "workspace_id": rec.workspace_id if rec else None,
             })
     return {"uploads": files, "dir": str(UPLOAD_DIR)}
+
+
+# -------------------------------------------------------------------
+# Delete file (by owner only)
+# -------------------------------------------------------------------
+@router.delete("/workspace/{workspace_id}/{file_id}")
+def delete_workspace_file(
+    workspace_id: int,
+    file_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete a file from workspace storage (owner only).
+    
+    Only the user who uploaded the file can delete it.
+    Admin users can also delete any file in their workspace.
+    """
+    record = get_record(db, file_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    if record.workspace_id != workspace_id:
+        # Do not leak existence across workspaces
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check authorization: must be owner or admin
+    if record.uploader_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only the file owner can delete this file")
+    
+    delete_file(db, file_id, current_user)
+    
+    return {
+        "status": "deleted",
+        "file_id": file_id,
+        "original_filename": record.original_filename,
+    }

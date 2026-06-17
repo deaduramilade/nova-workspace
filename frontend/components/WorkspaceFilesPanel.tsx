@@ -29,6 +29,12 @@ interface ContextMenuState {
   file: WorkspaceFile;
 }
 
+interface CurrentUser {
+  id?: number;
+  username?: string;
+  role?: string;
+}
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -49,15 +55,32 @@ function getFileIcon(file: WorkspaceFile): string {
   return '📎';
 }
 
+function getCurrentUser(): CurrentUser {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem('nova_user');
+    if (raw) return JSON.parse(raw);
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
 export default function WorkspaceFilesPanel({ workspaceId }: WorkspaceFilesPanelProps) {
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUser>({});
 
   const { sendAttachment: chatSendAttachment } = useChat();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setCurrentUser(getCurrentUser());
+  }, []);
 
   const loadFiles = useCallback(async () => {
     setLoading(true);
@@ -92,6 +115,12 @@ export default function WorkspaceFilesPanel({ workspaceId }: WorkspaceFilesPanel
       document.removeEventListener('keydown', onKey);
     };
   }, [contextMenu]);
+
+  // Can user delete this file?
+  const canDelete = (file: WorkspaceFile): boolean => {
+    if (currentUser.role === 'admin') return true;
+    return file.uploader_id === currentUser.id;
+  };
 
   // ---------------- Upload ----------------
   const triggerUpload = () => {
@@ -211,6 +240,32 @@ export default function WorkspaceFilesPanel({ workspaceId }: WorkspaceFilesPanel
     }
   };
 
+  const doDelete = async (file: WorkspaceFile) => {
+    if (!canDelete(file)) {
+      toast.error('Only the file owner can delete this file');
+      return;
+    }
+
+    if (!confirm(`Delete "${file.original_filename}"? This cannot be undone.`)) {
+      return;
+    }
+
+    setDeleting(file.id);
+    try {
+      await axios.delete(apiUrl(`/files/workspace/${workspaceId}/${file.id}`), {
+        headers: authHeaders(),
+      });
+      setFiles((prev) => prev.filter((f) => f.id !== file.id));
+      toast.success('File deleted');
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail || 'Failed to delete file';
+      toast.error(detail);
+    } finally {
+      setDeleting(null);
+      setContextMenu(null);
+    }
+  };
+
   // Right-click context menu
   const handleContextMenu = (e: React.MouseEvent, file: WorkspaceFile) => {
     e.preventDefault();
@@ -270,6 +325,16 @@ export default function WorkspaceFilesPanel({ workspaceId }: WorkspaceFilesPanel
           >
             💬
           </button>
+          {canDelete(file) && (
+            <button
+              onClick={() => doDelete(file)}
+              disabled={deleting === file.id}
+              className="text-xs px-2 py-1 rounded-lg border border-red-400/30 text-red-300 hover:bg-red-500/10 disabled:opacity-50"
+              title="Delete file"
+            >
+              {deleting === file.id ? '⏳' : '🗑️'}
+            </button>
+          )}
         </div>
 
         {/* Always visible small download affordance */}
@@ -379,6 +444,18 @@ export default function WorkspaceFilesPanel({ workspaceId }: WorkspaceFilesPanel
           >
             💬 Share to chat
           </button>
+          {canDelete(contextMenu.file) && (
+            <>
+              <div className="border-t border-white/10 my-1" />
+              <button
+                className="block w-full text-left px-3 py-1.5 rounded-lg hover:bg-red-500/10 text-red-300 disabled:opacity-50"
+                onClick={() => { doDelete(contextMenu.file); }}
+                disabled={deleting === contextMenu.file.id}
+              >
+                {deleting === contextMenu.file.id ? '⏳ Deleting…' : '🗑️ Delete file'}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
