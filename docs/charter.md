@@ -6,7 +6,7 @@
 **Repository**: https://github.com/deaduramilade/nova-workspace  
 **License**: Apache-2.0
 
----
+----
 
 ## 1. Project Overview & Vision
 
