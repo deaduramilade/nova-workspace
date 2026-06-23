@@ -26,3 +26,8 @@ class User(Base):
 
     # Relationship with workspaces
     workspaces = relationship("Workspace", back_populates="owner", cascade="all, delete-orphan")
+    
+    # Zero-trust device relationships
+    device_fingerprints = relationship("DeviceFingerprint", back_populates="user", cascade="all, delete-orphan")
+    trusted_devices = relationship("TrustedDevice", back_populates="user", cascade="all, delete-orphan")
+    admin_sessions = relationship("AdminSession", back_populates="user", cascade="all, delete-orphan")

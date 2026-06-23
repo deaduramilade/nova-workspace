@@ -19,8 +19,10 @@ from app.core.startup_checks import run_startup_security_checks
 from app.api.v1.admin import router as admin_router
 from app.api.v1.agents import router as agents_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.auth_zero_trust import router as auth_zero_trust_router
 from app.api.v1.calls import router as calls_router
 from app.api.v1.chat import router as chat_router
+from app.api.v1.devices import router as devices_router
 from app.api.v1.files import router as files_router
 from app.api.v1.hr import router as hr_router
 from app.api.v1.memory import router as memory_router
@@ -85,6 +87,8 @@ app.add_middleware(
 
 # Routers
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(auth_zero_trust_router)  # Already has prefix in router definition
+app.include_router(devices_router)  # Already has prefix in router definition
 app.include_router(workspaces_router, prefix="/api/v1/workspaces", tags=["workspaces"])
 app.include_router(sessions_router, prefix="/api/v1/sessions", tags=["sessions"])
 app.include_router(streaming_router, prefix="/api/v1/streaming", tags=["streaming"])

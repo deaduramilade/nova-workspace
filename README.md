@@ -25,6 +25,14 @@ The experience is comparable to “Google Docs + VS Code + Cursor + Figma + Zoom
 - Isolated Docker containers provisioned per participant
 - Persistent storage and environment state
 - Offline-first architecture with CRDT foundation for automatic, non-disruptive background synchronization
+- **Zero-Trust Multi-Factor Authentication**: Device-based login with risk assessment and adaptive MFA for admins
+  - Device fingerprinting and automatic recognition
+  - Real-time risk scoring (0-100)
+  - Trusted device management
+  - Per-device session tracking
+  - Anomaly detection and verification
+  - Complete audit trail
+  - See [Zero-Trust MFA Guide](docs/zero-trust-summary.md) for details
 - Production-grade security hardening: rate limiting, environment-driven configuration, AES-256-GCM encryption (Argon2-derived keys), MFA support, RBAC + ABAC
 - Strong privacy & compliance posture: 7-day maximum data retention with automatic deletion, GDPR/CCPA/SOC 2/ISO 27001 aligned controls
 - Resource-efficient design: optimized for 4 GB RAM devices and metered connections; Oracle Cloud Always Free Tier compact profile (~1.6 GB total container RAM budget)
