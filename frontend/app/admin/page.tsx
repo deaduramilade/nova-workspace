@@ -8,6 +8,32 @@ import PageNav from '../../components/PageNav';
 import { useRole } from '../../contexts/RoleContext';
 import { apiUrl, authHeaders } from '../../lib/api';
 
+// ────────────────────────────────────────────────────────────────
+// Types
+// ────────────────────────────────────────────────────────────────
+
+interface AdminUser {
+  id: number;
+  username: string;
+  email: string;
+  display_name?: string | null;
+  avatar_url?: string | null;
+}
+
+interface QuickStats {
+  pending_approvals: number;
+  total_users: number;
+  active_sessions: number;
+}
+
+interface ActivityLog {
+  id: number;
+  action: string;
+  user: string;
+  timestamp: string;
+  details?: string;
+}
+
 interface ManagedUser {
   id: number;
   username: string;
@@ -23,16 +49,17 @@ interface ManagedUser {
 
 const ROLE_OPTIONS = ['user', 'supervisor', 'hr', 'lead', 'admin'];
 
-export default function AdministratorDashboard() {
+export default function AdminDashboard() {
   const router = useRouter();
-  const { realIsAdmin, refreshRole } = useRole();
-  const [users, setUsers] = useState<ManagedUser[]>([]);
+  const { realIsAdmin } = useRole();
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
+  const [stats, setStats] = useState<QuickStats | null>(null);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [roleRequests, setRoleRequests] = useState<any[]>([]);
 
-  // Create user form state
+  // User management state (for inline management)
   const [showCreate, setShowCreate] = useState(false);
   const [newUser, setNewUser] = useState({
     username: '',
@@ -43,175 +70,92 @@ export default function AdministratorDashboard() {
   const [creating, setCreating] = useState(false);
   const [userActionLoading, setUserActionLoading] = useState<{ [key: number]: boolean }>({});
 
-  // Role change requests (from testing switcher)
-  const [roleRequests, setRoleRequests] = useState<any[]>([]);
-  const [loadingRequests, setLoadingRequests] = useState(false);
-  const [actionLoading, setActionLoading] = useState<{ [key: string]: boolean }>({});  // e.g., { 'approve-123': true }
-  const [otpInputs, setOtpInputs] = useState<{ [key: number]: string }>({});  // per request OTP for MFA
+  // ────────────────────────────────────────────────────────────────
+  // Fetch Data
+  // ────────────────────────────────────────────────────────────────
 
-  const fetchRoleRequests = async () => {
-    setLoadingRequests(true);
+  const fetchCurrentUser = async () => {
     try {
-      const res = await axios.get(apiUrl('/admin/role-requests'), { headers: authHeaders() });
-      setRoleRequests(res.data.requests || []);
-    } catch (e: any) {
-      if (e?.response?.status !== 403) {
-        toast.error('Failed to load role requests');
-      }
-    } finally {
-      setLoadingRequests(false);
+      const res = await axios.get(apiUrl('/users/me'), { headers: authHeaders() });
+      setCurrentUser(res.data);
+    } catch (error) {
+      console.error('Failed to fetch current user:', error);
     }
   };
 
-  const handleApproveRequest = async (id: number) => {
-    const key = `approve-${id}`;
-    const emailOtp = otpInputs[id] || "";
-    const totpCode = otpInputs[`totp-${id}`] || "";
-    if (!emailOtp && !totpCode) {
-      toast.error("Enter Email OTP or TOTP code for MFA approval");
-      return;
-    }
-    setActionLoading(prev => ({ ...prev, [key]: true }));
+  const fetchQuickStats = async () => {
     try {
-      await axios.post(
-        apiUrl(`/admin/role-requests/${id}/approve`),
-        { otp: emailOtp, totp_code: totpCode, notes: "" },
-        { headers: authHeaders() }
-      );
-      toast.success("Role request approved. User role updated.");
-      fetchRoleRequests();
-      fetchUsers();
-      refreshRole();
-      setOtpInputs((prev) => {
-        const { [id]: _, [`totp-${id}`]: __, ...rest } = prev;
-        return rest;
-      });
-    } catch (e: any) {
-      toast.error(e?.response?.data?.detail || "Failed to approve (check OTP/TOTP)");
-    } finally {
-      setActionLoading((prev) => {
-        const { [key]: _, ...rest } = prev;
-        return rest;
-      });
+      const res = await axios.get(apiUrl('/admin/quick-stats'), { headers: authHeaders() });
+      setStats(res.data);
+    } catch (error) {
+      console.error('Failed to fetch stats:', error);
+      // Set default stats on error
+      setStats({ pending_approvals: 0, total_users: 0, active_sessions: 0 });
     }
   };
 
-  const handleRejectRequest = async (id: number) => {
-    const key = `reject-${id}`;
-    const emailOtp = otpInputs[id] || "";
-    const totpCode = otpInputs[`totp-${id}`] || "";
-    if (!emailOtp && !totpCode) {
-      toast.error("Enter Email OTP or TOTP code for MFA rejection");
-      return;
-    }
-    setActionLoading((prev) => ({ ...prev, [key]: true }));
+  const fetchActivityLogs = async () => {
     try {
-      await axios.post(
-        apiUrl(`/admin/role-requests/${id}/reject`),
-        { otp: emailOtp, totp_code: totpCode, notes: "" },
-        { headers: authHeaders() }
-      );
-      toast.success("Request rejected.");
-      fetchRoleRequests();
-      setOtpInputs((prev) => {
-        const { [id]: _, [`totp-${id}`]: __, ...rest } = prev;
-        return rest;
-      });
-    } catch (e: any) {
-      toast.error(e?.response?.data?.detail || "Failed to reject (check OTP/TOTP)");
-    } finally {
-      setActionLoading((prev) => {
-        const { [key]: _, ...rest } = prev;
-        return rest;
-      });
+      const res = await axios.get(apiUrl('/admin/activity-logs?limit=6'), { headers: authHeaders() });
+      setActivityLogs(res.data.logs || []);
+    } catch (error) {
+      console.error('Failed to fetch activity logs:', error);
     }
   };
 
   const fetchUsers = async () => {
+    try {
+      const res = await axios.get(apiUrl('/admin/users'), { headers: authHeaders() });
+      setUsers(res.data || []);
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+    }
+  };
+
+  const fetchRoleRequests = async () => {
+    try {
+      const res = await axios.get(apiUrl('/admin/role-requests?status=pending'), { headers: authHeaders() });
+      setRoleRequests(res.data.requests || []);
+    } catch (error) {
+      console.error('Failed to fetch role requests:', error);
+    }
+  };
+
+  // ────────────────────────────────────────────────────────────────
+  // Initialize & Load Data
+  // ────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
     const token = localStorage.getItem('access_token');
     if (!token) {
       router.push('/login');
       return;
     }
-    setLoading(true);
-    try {
-      const res = await axios.get(apiUrl('/admin/users'), { headers: authHeaders() });
-      setUsers(res.data || []);
-    } catch (e: any) {
-      if (e?.response?.status === 403) {
-        toast.error('Administrator access required');
-        router.push('/');
-        return;
-      }
-      toast.error('Failed to load users');
-    } finally {
-      setLoading(false);
+
+    // Check role access
+    if (!realIsAdmin) {
+      toast.error('Admin access required');
+      router.push('/');
+      return;
     }
-  };
 
-  useEffect(() => {
-    fetchUsers();
-    fetchRoleRequests();
-
-    // WebSocket real-time updates for role requests (via existing supervisor feedback channel)
-    const handleRealtimeUpdate = (event: CustomEvent) => {
-      const detail = event.detail;
-      if (detail && (detail.message || "").toLowerCase().includes("role request")) {
-        // Refresh lists on relevant realtime events (submitted/approved/rejected)
-        fetchRoleRequests();
-        fetchUsers();
-      }
-    };
-
-    window.addEventListener("nova-supervisor-feedback", handleRealtimeUpdate as EventListener);
-
-    return () => {
-      window.removeEventListener("nova-supervisor-feedback", handleRealtimeUpdate as EventListener);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Fetch all data on mount
+    setLoading(true);
+    Promise.all([
+      fetchCurrentUser(),
+      fetchQuickStats(),
+      fetchActivityLogs(),
+      fetchUsers(),
+      fetchRoleRequests(),
+    ]).finally(() => setLoading(false));
   }, []);
 
-  // Role gate — use *real* admin status for the actual admin page (testing switcher shouldn't grant real admin access)
-  if (!realIsAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="glass p-10 rounded-3xl text-center max-w-md">
-          <div className="text-6xl mb-4">🔐</div>
-          <h1 className="text-2xl font-semibold mb-2">Administrator Access Only</h1>
-          <p className="text-readable-muted mb-6">This dashboard is restricted to users with the admin role.</p>
-          <button onClick={() => router.push('/')} className="btn-primary px-6 py-2 rounded-2xl text-sm">
-            Back to Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const filteredUsers = users
-    .filter((u) => {
-      const q = search.toLowerCase();
-      const matchesSearch =
-        u.username.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        (u.display_name || '').toLowerCase().includes(q);
-      const matchesRole = !roleFilter || u.role === roleFilter;
-      const matchesActive =
-        activeFilter === 'all' ||
-        (activeFilter === 'active' && u.is_active) ||
-        (activeFilter === 'inactive' && !u.is_active);
-      return matchesSearch && matchesRole && matchesActive;
-    })
-    .sort((a, b) => a.username.localeCompare(b.username));
-
-  const stats = {
-    total: users.length,
-    active: users.filter((u) => u.is_active).length,
-    admins: users.filter((u) => u.role === 'admin').length,
-    inactive: users.filter((u) => !u.is_active).length,
-  };
+  // ────────────────────────────────────────────────────────────────
+  // Handlers
+  // ────────────────────────────────────────────────────────────────
 
   const handleRoleChange = async (userId: number, newRole: string) => {
-    setUserActionLoading(prev => ({ ...prev, [userId]: true }));
+    setUserActionLoading((prev) => ({ ...prev, [userId]: true }));
     try {
       await axios.patch(
         apiUrl(`/admin/users/${userId}`),
@@ -220,10 +164,11 @@ export default function AdministratorDashboard() {
       );
       toast.success('Role updated');
       fetchUsers();
+      fetchQuickStats();
     } catch (e: any) {
       toast.error(e?.response?.data?.detail || 'Failed to update role');
     } finally {
-      setUserActionLoading(prev => {
+      setUserActionLoading((prev) => {
         const { [userId]: _, ...rest } = prev;
         return rest;
       });
@@ -250,6 +195,7 @@ export default function AdministratorDashboard() {
       await axios.delete(apiUrl(`/admin/users/${user.id}`), { headers: authHeaders() });
       toast.success(`Deleted ${user.username}`);
       fetchUsers();
+      fetchQuickStats();
     } catch (e: any) {
       toast.error(e?.response?.data?.detail || 'Failed to delete user');
     }
@@ -268,12 +214,15 @@ export default function AdministratorDashboard() {
       setNewUser({ username: '', email: '', password: '', role: 'user' });
       setShowCreate(false);
       fetchUsers();
+      fetchQuickStats();
     } catch (e: any) {
       toast.error(e?.response?.data?.detail || 'Failed to create user');
     } finally {
       setCreating(false);
     }
   };
+
+  const navigateTo = (path: string) => router.push(path);
 
   return (
     <div className="min-h-screen text-readable pb-16">
