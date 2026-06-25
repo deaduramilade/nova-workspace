@@ -149,7 +149,7 @@ function AuditLogRow({ log }: { log: AuditLog }) {
 
 export default function SuperAdminPage() {
   const router = useRouter();
-  const { realIsAdmin, effectiveRole } = useRole();
+  const { realIsAdmin, realIsSuperAdmin, effectiveRole } = useRole();
 
   // State
   const [stats, setStats] = useState<SystemStats | null>(null);
@@ -172,9 +172,9 @@ export default function SuperAdminPage() {
       return;
     }
 
-    // Only admin or super_admin can access
-    if (!realIsAdmin && effectiveRole !== 'super_admin') {
-      toast.error('Access denied. Super Admin role required.');
+    // Only super_admin can access
+    if (!realIsSuperAdmin) {
+      toast.error('Super Admin access required');
       router.push('/');
       return;
     }

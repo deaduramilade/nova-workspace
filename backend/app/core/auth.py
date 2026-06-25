@@ -12,15 +12,17 @@ security = HTTPBearer()
 # =============================================================================
 # Role constants (centralized for RBAC)
 # =============================================================================
+SUPER_ADMIN = "super_admin"
 ADMIN = "admin"
 HR = "hr"
 SUPERVISOR = "supervisor"
 LEAD = "lead"
 USER = "user"
 
-SUPERVISOR_ROLES = {SUPERVISOR, ADMIN, LEAD}
-HR_ROLES = {HR, ADMIN}
-ADMIN_ROLES = {ADMIN}
+SUPERVISOR_ROLES = {SUPERVISOR, ADMIN, SUPER_ADMIN, LEAD}
+HR_ROLES = {HR, ADMIN, SUPER_ADMIN}
+ADMIN_ROLES = {ADMIN, SUPER_ADMIN}
+SUPER_ADMIN_ROLES = {SUPER_ADMIN}
 
 
 async def get_current_user(
@@ -110,12 +112,23 @@ def require_supervisor():
     return require_role(*SUPERVISOR_ROLES)
 
 
+def require_super_admin():
+    """Allows only super_admin role."""
+    return require_role(SUPER_ADMIN)
+
+
 # =============================================================================
 # Helper functions (for use inside services/managers where Depends is not available)
 # =============================================================================
 
 def is_admin(role: str) -> bool:
-    return (role or "").lower() == ADMIN
+    """Check if role is admin or super_admin."""
+    return (role or "").lower() in ADMIN_ROLES
+
+
+def is_super_admin(role: str) -> bool:
+    """Check if role is super_admin."""
+    return (role or "").lower() == SUPER_ADMIN
 
 
 def is_hr(role: str) -> bool:

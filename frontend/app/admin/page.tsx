@@ -224,129 +224,341 @@ export default function AdminDashboard() {
 
   const navigateTo = (path: string) => router.push(path);
 
+  // ────────────────────────────────────────────────────────────────
+  // Render
+  // ────────────────────────────────────────────────────────────────
+
   return (
-    <div className="min-h-screen text-readable pb-16">
-      <Toaster position="top-center" />
+    <div className="nova-bg min-h-screen">
+      <Toaster position="top-right" />
       <PageNav
-        title="Administrator Dashboard"
-        subtitle="User management • Role control • System oversight"
-        backLabel="← Dashboard"
+        title="Admin Dashboard"
+        subtitle="User & role management hub"
         backHref="/"
       />
 
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-        {/* Header + Stats */}
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Administrator Dashboard</h1>
-            <p className="text-readable-muted mt-1">Manage all users, roles, and account status</p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => router.push('/admin/audit')}
-              className="glass px-4 py-2 rounded-2xl text-sm"
-            >
-              View Audit Logs
-            </button>
-            <button
-              onClick={() => setShowCreate(!showCreate)}
-              className="btn-primary px-5 py-2 rounded-2xl text-sm"
-            >
-              {showCreate ? 'Cancel' : '+ Create New User'}
-            </button>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: 'Total Users', value: stats.total },
-            { label: 'Active', value: stats.active, color: 'text-emerald-400' },
-            { label: 'Admins', value: stats.admins, color: 'text-violet-400' },
-            { label: 'Inactive', value: stats.inactive, color: 'text-amber-400' },
-          ].map((s, i) => (
-            <div key={i} className="glass rounded-2xl p-5">
-              <div className={`text-3xl font-bold tabular-nums ${s.color || ''}`}>{s.value}</div>
-              <div className="text-xs uppercase tracking-widest text-readable-subtle mt-1">{s.label}</div>
+      <main className="nova-content pt-24 pb-20">
+        <div className="px-4 md:px-6 lg:px-8 max-w-7xl mx-auto">
+          {loading ? (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-center">
+                <div className="w-12 h-12 border-2 border-sky-500/20 border-t-sky-400 rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-slate-400">Loading dashboard...</p>
+              </div>
             </div>
-          ))}
+          ) : (
+            <>
+              {/* ── Welcome Header ── */}
+              <section className="mb-12">
+                <div className="glass-card p-8 rounded-3xl border border-white/10 bg-gradient-to-r from-sky-500/10 to-indigo-500/10">
+                  <div className="flex items-center justify-between gap-6 flex-wrap">
+                    <div>
+                      <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
+                        Welcome back, {currentUser?.display_name || currentUser?.username || 'Admin'}
+                      </h1>
+                      <p className="text-slate-300">
+                        Manage users, roles, and system oversight from this hub.
+                      </p>
+                    </div>
+                    <div className="text-5xl">🎛️</div>
+                  </div>
+                </div>
+              </section>
+
+              {/* ── Quick Stats ── */}
+              <section className="mb-12">
+                <h2 className="text-2xl font-bold text-white mb-6">Quick Stats</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  {/* Pending Approvals */}
+                  <div className="glass-card p-6 rounded-2xl border border-white/10 hover:border-amber-500/30 transition-colors">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <p className="text-slate-400 text-sm font-medium mb-1">Pending Approvals</p>
+                        <p className="text-4xl font-bold text-amber-300">
+                          {stats?.pending_approvals || 0}
+                        </p>
+                      </div>
+                      <span className="text-3xl opacity-50">⏳</span>
+                    </div>
+                    {(stats?.pending_approvals || 0) > 0 && (
+                      <button
+                        onClick={() => navigateTo('#role-requests')}
+                        className="text-xs text-amber-300 hover:text-amber-200 font-medium mt-2"
+                      >
+                        Review now →
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Total Users */}
+                  <div className="glass-card p-6 rounded-2xl border border-white/10 hover:border-sky-500/30 transition-colors">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <p className="text-slate-400 text-sm font-medium mb-1">Total Users</p>
+                        <p className="text-4xl font-bold text-sky-300">
+                          {stats?.total_users || users.length}
+                        </p>
+                      </div>
+                      <span className="text-3xl opacity-50">👥</span>
+                    </div>
+                    <button
+                      onClick={() => navigateTo('#manage-users')}
+                      className="text-xs text-sky-300 hover:text-sky-200 font-medium mt-2"
+                    >
+                      View users →
+                    </button>
+                  </div>
+
+                  {/* Active Sessions */}
+                  <div className="glass-card p-6 rounded-2xl border border-white/10 hover:border-emerald-500/30 transition-colors">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <p className="text-slate-400 text-sm font-medium mb-1">Active Sessions</p>
+                        <p className="text-4xl font-bold text-emerald-300">
+                          {stats?.active_sessions || 0}
+                        </p>
+                      </div>
+                      <span className="text-3xl opacity-50">🔗</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* ── Management Cards ── */}
+              <section className="mb-12">
+                <h2 className="text-2xl font-bold text-white mb-6">Management Tools</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {/* Role Request Management Card */}
+                  <button
+                    onClick={() => navigateTo('#role-requests')}
+                    className="glass-card p-7 rounded-2xl border border-white/10 hover:border-violet-500/40 hover:bg-violet-500/5 transition-all text-left group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <p className="text-4xl group-hover:scale-110 transition-transform">🔄</p>
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-violet-500/20 border border-violet-500/40 text-violet-300">
+                        {roleRequests.length} pending
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-semibold text-white mb-1">Role Requests</h3>
+                    <p className="text-sm text-slate-400">
+                      Approve or reject pending role change requests
+                    </p>
+                  </button>
+
+                  {/* User Management Card */}
+                  <button
+                    onClick={() => navigateTo('#manage-users')}
+                    className="glass-card p-7 rounded-2xl border border-white/10 hover:border-sky-500/40 hover:bg-sky-500/5 transition-all text-left group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <p className="text-4xl group-hover:scale-110 transition-transform">👤</p>
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-sky-500/20 border border-sky-500/40 text-sky-300">
+                        {users.length} total
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-semibold text-white mb-1">User Management</h3>
+                    <p className="text-sm text-slate-400">
+                      Create, edit, delete, and manage user accounts
+                    </p>
+                  </button>
+
+                  {/* Audit Logs Card */}
+                  <button
+                    onClick={() => navigateTo('/admin/audit')}
+                    className="glass-card p-7 rounded-2xl border border-white/10 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all text-left group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <p className="text-4xl group-hover:scale-110 transition-transform">📋</p>
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">
+                        View all
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-semibold text-white mb-1">Audit Logs</h3>
+                    <p className="text-sm text-slate-400">
+                      Track system actions and user activities
+                    </p>
+                  </button>
+
+                  {/* System Reports Card */}
+                  <button
+                    onClick={() => navigateTo('#')}
+                    className="glass-card p-7 rounded-2xl border border-white/10 hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all text-left group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <p className="text-4xl group-hover:scale-110 transition-transform">📊</p>
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-indigo-500/20 border border-indigo-500/40 text-indigo-300">
+                        Dashboard
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-semibold text-white mb-1">System Reports</h3>
+                    <p className="text-sm text-slate-400">
+                      View analytics and system performance metrics
+                    </p>
+                  </button>
+                </div>
+              </section>
+
+              {/* ── Recent Activity Feed ── */}
+              <section className="mb-12">
+                <h2 className="text-2xl font-bold text-white mb-6">Recent Activity</h2>
+                {activityLogs.length === 0 ? (
+                  <div className="glass-card p-8 rounded-2xl border border-white/10 text-center">
+                    <p className="text-slate-400">No recent activity</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {activityLogs.map((log) => (
+                      <div
+                        key={log.id}
+                        className="glass-card px-5 py-4 rounded-xl border border-white/10 hover:border-sky-500/30 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-sky-300">{log.action}</p>
+                            <p className="text-xs text-slate-400 mt-1">{log.user}</p>
+                            {log.details && (
+                              <p className="text-xs text-slate-500 mt-2">{log.details}</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-slate-500">
+                              {new Date(log.timestamp).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* ── User Management Section (Inline) ── */}
+              <section id="manage-users" className="mb-12">
+                <div className="flex items-center justify-between gap-4 mb-6">
+                  <h2 className="text-2xl font-bold text-white">Manage Users</h2>
+                  <button
+                    onClick={() => setShowCreate(!showCreate)}
+                    className="glass px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors"
+                  >
+                    {showCreate ? '✕ Cancel' : '+ Add User'}
+                  </button>
+                </div>
+
+                {/* Create User Form */}
+                {showCreate && (
+                  <div className="glass-card p-6 rounded-2xl border border-white/10 mb-6">
+                    <form onSubmit={handleCreateUser} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <input
+                          type="text"
+                          placeholder="Username"
+                          value={newUser.username}
+                          onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                          className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder-slate-500"
+                          required
+                        />
+                        <input
+                          type="email"
+                          placeholder="Email"
+                          value={newUser.email}
+                          onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                          className="md:col-span-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder-slate-500"
+                          required
+                        />
+                        <input
+                          type="password"
+                          placeholder="Password"
+                          value={newUser.password}
+                          onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                          className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder-slate-500"
+                          required
+                        />
+                        <select
+                          value={newUser.role}
+                          onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                          className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white"
+                        >
+                          {ROLE_OPTIONS.map((r) => (
+                            <option key={r} value={r}>
+                              {r}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={creating}
+                        className="px-6 py-2 rounded-xl bg-sky-500/20 border border-sky-500/40 text-sky-300 text-sm font-medium hover:bg-sky-500/30 transition-colors disabled:opacity-50"
+                      >
+                        {creating ? 'Creating...' : 'Create User'}
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {/* User List */}
+                {users.length === 0 ? (
+                  <div className="glass-card p-8 rounded-2xl border border-white/10 text-center">
+                    <p className="text-slate-400">No users found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {users.slice(0, 10).map((user) => (
+                      <div
+                        key={user.id}
+                        className="glass-card p-4 rounded-xl border border-white/10 hover:border-sky-500/30 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-4 flex-wrap">
+                          <div className="flex-1 min-w-[200px]">
+                            <p className="font-semibold text-white">{user.username}</p>
+                            <p className="text-xs text-slate-400">{user.email}</p>
+                          </div>
+                          <select
+                            value={user.role}
+                            onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                            disabled={userActionLoading[user.id]}
+                            className="px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-white disabled:opacity-50"
+                          >
+                            {ROLE_OPTIONS.map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => handleToggleActive(user)}
+                            className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                              user.is_active
+                                ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
+                                : 'bg-slate-500/20 border border-slate-500/40 text-slate-300'
+                            }`}
+                          >
+                            {user.is_active ? 'Active' : 'Inactive'}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(user)}
+                            className="px-3 py-1 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-medium hover:bg-red-500/30"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {users.length > 10 && (
+                      <p className="text-xs text-slate-500 text-center mt-4">
+                        Showing 10 of {users.length} users
+                      </p>
+                    )}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
         </div>
-
-        {/* Create User Form */}
-        {showCreate && (
-          <div className="glass rounded-2xl p-6">
-            <h3 className="font-semibold mb-4">Create New User</h3>
-            <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-              <div className="md:col-span-1">
-                <label className="text-xs text-readable-subtle">Username</label>
-                <input
-                  type="text"
-                  value={newUser.username}
-                  onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm"
-                  required
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-xs text-readable-subtle">Email</label>
-                <input
-                  type="email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-xs text-readable-subtle">Password</label>
-                <input
-                  type="password"
-                  value={newUser.password}
-                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-xs text-readable-subtle">Role</label>
-                <select
-                  value={newUser.role}
-                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm"
-                >
-                  {ROLE_OPTIONS.map((r) => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="md:col-span-5 flex gap-3">
-                <button type="submit" disabled={creating} className="btn-primary px-6 py-2 rounded-xl text-sm">
-                  {creating ? 'Creating...' : 'Create User'}
-                </button>
-                <button type="button" onClick={() => setShowCreate(false)} className="glass px-5 py-2 rounded-xl text-sm">
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3 items-center">
-          <input
-            type="text"
-            placeholder="Search username, email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 min-w-[220px] px-4 py-2 rounded-2xl bg-white/5 border border-white/10 text-sm"
-          />
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="px-3 py-2 rounded-2xl bg-white/5 border border-white/10 text-sm"
-          >
-            <option value="">All Roles</option>
-            {ROLE_OPTIONS.map((r) => (
+      </main>
+    </div>
+  );
+}
               <option key={r} value={r}>{r}</option>
             ))}
           </select>

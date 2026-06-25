@@ -11,9 +11,11 @@ interface RoleContextValue {
   isAdmin: boolean;
   isHR: boolean;
   isSupervisor: boolean;
+  isSuperAdmin: boolean;
   realIsAdmin: boolean;
   realIsHR: boolean;
   realIsSupervisor: boolean;
+  realIsSuperAdmin: boolean;
   setTestingRole: (role: string) => void;
   clearTestingRole: () => void;
   submitRoleRequest: (desiredRole: string) => Promise<boolean>;
@@ -50,13 +52,15 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
 
   const effectiveRole = testingRole || realRole;
 
-  const isAdmin = effectiveRole === 'admin';
-  const isHR = ['hr', 'admin'].includes(effectiveRole);
-  const isSupervisor = ['supervisor', 'admin', 'lead'].includes(effectiveRole);
+  const isAdmin = ['admin', 'super_admin'].includes(effectiveRole);
+  const isHR = ['hr', 'admin', 'super_admin'].includes(effectiveRole);
+  const isSupervisor = ['supervisor', 'admin', 'super_admin', 'lead'].includes(effectiveRole);
+  const isSuperAdmin = effectiveRole === 'super_admin';
 
-  const realIsAdmin = realRole === 'admin';
-  const realIsHR = ['hr', 'admin'].includes(realRole);
-  const realIsSupervisor = ['supervisor', 'admin', 'lead'].includes(realRole);
+  const realIsAdmin = ['admin', 'super_admin'].includes(realRole);
+  const realIsHR = ['hr', 'admin', 'super_admin'].includes(realRole);
+  const realIsSupervisor = ['supervisor', 'admin', 'super_admin', 'lead'].includes(realRole);
+  const realIsSuperAdmin = realRole === 'super_admin';
 
   const isTesting = !!testingRole;
 
@@ -164,9 +168,11 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     isAdmin,
     isHR,
     isSupervisor,
+    isSuperAdmin,
     realIsAdmin,
     realIsHR,
     realIsSupervisor,
+    realIsSuperAdmin,
     setTestingRole,
     clearTestingRole,
     submitRoleRequest,
