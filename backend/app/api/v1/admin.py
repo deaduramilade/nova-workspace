@@ -463,37 +463,71 @@ from app.services.audit_service import get_audit_logs
 
 @router.get("/audit-logs")
 def get_audit_logs_endpoint(
-    limit: int = 100,
+    limit: int = 50,
     offset: int = 0,
-    target_user_id: Optional[int] = None,
     action: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    target_user_id: Optional[int] = None,
     current_user: User = require_admin(),
     db: Session = Depends(get_db),
 ):
-    """Admin endpoint to view audit logs, focused on role changes."""
-    logs = get_audit_logs(
-        db,
-        limit=limit,
-        offset=offset,
-        target_user_id=target_user_id,
-        action=action,
-    )
-    result = []
-    for log in logs:
-        result.append({
-            "id": log.id,
-            "action": log.action,
-            "target_user_id": log.target_user_id,
-            "target_username": log.target_username,
-            "performed_by_id": log.performed_by_id,
-            "performed_by_username": log.performed_by_username,
-            "old_value": log.old_value,
-            "new_value": log.new_value,
-            "details": log.details,
-            "ip_address": log.ip_address,
-            "timestamp": log.timestamp.isoformat() if log.timestamp else None,
-        })
-    return {"logs": result, "total_returned": len(result)}
+    """
+    Admin endpoint to view audit logs with filtering and pagination.
+    
+    Query parameters:
+    - limit: Number of logs per page (default: 50)
+    - offset: Pagination offset (default: 0)
+    - action: Filter by action type (optional)
+    - date_from: Filter from date (YYYY-MM-DD format, optional)
+    - date_to: Filter to date (YYYY-MM-DD format, optional)
+    - target_user_id: Filter by target user ID (optional)
+    """
+    try:
+        # Parse dates if provided
+        date_from_dt = None
+        date_to_dt = None
+        
+        if date_from:
+            from datetime import datetime
+            date_from_dt = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+        
+        if date_to:
+            from datetime import datetime
+            date_to_dt = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+        
+        logs = get_audit_logs(
+            db,
+            limit=limit,
+            offset=offset,
+            target_user_id=target_user_id,
+            action=action,
+            date_from=date_from_dt,
+            date_to=date_to_dt,
+        )
+        
+        result = []
+        for log in logs:
+            result.append({
+                "id": log.id,
+                "action": log.action,
+                "target_user_id": log.target_user_id,
+                "target_username": log.target_username,
+                "performed_by_id": log.performed_by_id,
+                "performed_by_username": log.performed_by_username,
+                "old_value": log.old_value,
+                "new_value": log.new_value,
+                "details": log.details,
+                "ip_address": log.ip_address,
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+            })
+        
+        return {"logs": result, "total_returned": len(result)}
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid date format: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve audit logs: {str(e)}")
 
 
 # =============================================================================

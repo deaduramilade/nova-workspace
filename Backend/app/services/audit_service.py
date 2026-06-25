@@ -42,6 +42,8 @@ def get_audit_logs(
     target_user_id: Optional[int] = None,
     action: Optional[str] = None,
     performed_by_id: Optional[int] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
 ) -> list[AuditLog]:
     """Retrieve audit logs with optional filters."""
     query = db.query(AuditLog)
@@ -51,6 +53,10 @@ def get_audit_logs(
         query = query.filter(AuditLog.action == action)
     if performed_by_id:
         query = query.filter(AuditLog.performed_by_id == performed_by_id)
+    if date_from:
+        query = query.filter(AuditLog.timestamp >= date_from)
+    if date_to:
+        query = query.filter(AuditLog.timestamp <= date_to)
     return (
         query.order_by(AuditLog.timestamp.desc())
         .offset(offset)
