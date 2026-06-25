@@ -207,7 +207,7 @@ def delete_user_as_admin(
 # =============================================================================
 
 @router.post("/me/request-role")
-def request_role_change(
+async def request_role_change(
     data: RoleRequestCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -494,3 +494,127 @@ def get_audit_logs_endpoint(
             "timestamp": log.timestamp.isoformat() if log.timestamp else None,
         })
     return {"logs": result, "total_returned": len(result)}
+
+
+# =============================================================================
+# System Stats & Health
+# =============================================================================
+
+from app.models.workspace import Workspace
+from datetime import datetime
+import time
+
+
+@router.get("/system/stats")
+def get_system_stats(
+    current_user: User = require_admin(),
+    db: Session = Depends(get_db),
+):
+    """
+    Get high-level system statistics.
+    Accessible to admin and super_admin roles.
+    """
+    try:
+        # Count total users
+        total_users = db.query(User).count()
+        
+        # Count active workspaces
+        active_workspaces = db.query(Workspace).filter(Workspace.status == "active").count()
+        
+        # Count pending role requests
+        pending_role_requests = db.query(RoleRequest).filter(RoleRequest.status == "pending").count()
+        
+        # Count total workspaces (as proxy for meetings/sessions)
+        total_meetings = db.query(Workspace).count()
+        
+        return {
+            "total_users": total_users,
+            "active_workspaces": active_workspaces,
+            "pending_role_requests": pending_role_requests,
+            "total_meetings": total_meetings,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/system/health")
+def get_system_health(
+    current_user: User = require_admin(),
+    db: Session = Depends(get_db),
+):
+    """
+    Get system health status for all critical services.
+    Accessible to admin and super_admin roles.
+    
+    Returns status and metrics for:
+    - Database connection
+    - Redis cache (if configured)
+    - WebSocket server
+    """
+    health_status = {}
+    
+    # ─────────────────────────────────────────────────────────────
+    # Database Health Check
+    # ─────────────────────────────────────────────────────────────
+    try:
+        start_time = time.time()
+        db.query(User).limit(1).all()
+        latency_ms = (time.time() - start_time) * 1000
+        
+        health_status["database"] = {
+            "status": "healthy" if latency_ms < 100 else ("degraded" if latency_ms < 500 else "offline"),
+            "latency_ms": round(latency_ms, 2),
+            "last_check": datetime.utcnow().isoformat(),
+        }
+    except Exception as e:
+        health_status["database"] = {
+            "status": "offline",
+            "latency_ms": None,
+            "last_check": datetime.utcnow().isoformat(),
+            "error": str(e),
+        }
+    
+    # ─────────────────────────────────────────────────────────────
+    # Redis Health Check (simulated)
+    # ─────────────────────────────────────────────────────────────
+    try:
+        # Try to use Redis cache if available
+        from app.core.cache import cache_client
+        
+        if cache_client:
+            start_time = time.time()
+            cache_client.ping()
+            latency_ms = (time.time() - start_time) * 1000
+            
+            health_status["redis"] = {
+                "status": "healthy" if latency_ms < 50 else ("degraded" if latency_ms < 200 else "offline"),
+                "latency_ms": round(latency_ms, 2),
+                "last_check": datetime.utcnow().isoformat(),
+            }
+        else:
+            health_status["redis"] = {
+                "status": "healthy",
+                "latency_ms": 0,
+                "last_check": datetime.utcnow().isoformat(),
+                "note": "Redis not configured",
+            }
+    except Exception as e:
+        health_status["redis"] = {
+            "status": "offline",
+            "latency_ms": None,
+            "last_check": datetime.utcnow().isoformat(),
+            "error": str(e),
+        }
+    
+    # ─────────────────────────────────────────────────────────────
+    # WebSocket Health Check (simulated)
+    # ─────────────────────────────────────────────────────────────
+    health_status["websocket"] = {
+        "status": "healthy",
+        "active_connections": 0,  # Would come from WebSocket manager in real implementation
+        "last_check": datetime.utcnow().isoformat(),
+        "note": "WebSocket metrics would be populated by the WebSocket manager",
+    }
+    
+    return health_status

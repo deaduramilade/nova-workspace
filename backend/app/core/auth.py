@@ -99,7 +99,8 @@ def require_role(*allowed_roles: str):
 
 # Convenience wrappers for common privileged roles
 def require_admin():
-    return require_role(ADMIN)
+    """Allows admin and super_admin roles."""
+    return require_role(*ADMIN_ROLES)
 
 
 def require_hr():
