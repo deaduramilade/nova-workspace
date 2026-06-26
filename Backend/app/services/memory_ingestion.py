@@ -11,7 +11,6 @@ import re
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
-import ollama
 
 from app.core.config import settings
 from app.models.memory_chunk import MemoryChunk, ChunkType
@@ -19,6 +18,12 @@ from app.models.action_item import ActionItem, ActionItemStatus
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workspace_assignment_rule import WorkspaceAssignmentRule, AssignmentRuleType
+from app.services.memory_service import bulk_save_memories, extract_memories_from_transcript
+
+try:
+    import ollama
+except ImportError:  # pragma: no cover - depends on optional local runtime setup
+    ollama = None
 
 
 class MemoryIngestionError(Exception):
@@ -49,7 +54,7 @@ async def ingest_meeting_transcript(
     Raises:
         MemoryIngestionError: If ingestion fails
     """
-    if not settings.OLLAMA_ENABLED or not settings.MEMORY_INGESTION_ENABLED:
+    if not settings.MEMORY_INGESTION_ENABLED:
         return []
     
     # Verify workspace exists
@@ -58,12 +63,6 @@ async def ingest_meeting_transcript(
         raise MemoryIngestionError(f"Workspace {workspace_id} not found")
     
     try:
-        # Extract key elements from transcript using Ollama
-        extraction_results = await _extract_elements_from_transcript(transcript)
-        
-        if not extraction_results:
-            return []
-        
         # Prepare metadata with role tags
         chunk_metadata = metadata or {}
         if "role_tags" not in chunk_metadata:
@@ -71,78 +70,90 @@ async def ingest_meeting_transcript(
         chunk_metadata["extracted_at"] = datetime.now(timezone.utc).isoformat()
         
         created_chunks = []
+        extraction_results = await _extract_elements_from_transcript(transcript)
         
-        # Store decisions
-        for decision in extraction_results.get("decisions", []):
-            chunk = await _store_memory_chunk(
-                db=db,
-                workspace_id=workspace_id,
-                meeting_id=meeting_id,
-                content=decision,
-                chunk_type=ChunkType.DECISION,
-                metadata=chunk_metadata,
-            )
-            if chunk:
-                created_chunks.append(chunk)
-        
-        # Store discussion points
-        for discussion in extraction_results.get("discussions", []):
-            chunk = await _store_memory_chunk(
-                db=db,
-                workspace_id=workspace_id,
-                meeting_id=meeting_id,
-                content=discussion,
-                chunk_type=ChunkType.DISCUSSION,
-                metadata=chunk_metadata,
-            )
-            if chunk:
-                created_chunks.append(chunk)
-        
-        # Store action items and create ActionItem records
-        for action_item_data in extraction_results.get("action_items", []):
-            chunk = await _store_memory_chunk(
-                db=db,
-                workspace_id=workspace_id,
-                meeting_id=meeting_id,
-                content=action_item_data.get("description", ""),
-                chunk_type=ChunkType.ACTION_ITEM,
-                metadata={
-                    **chunk_metadata,
-                    "assigned_to": action_item_data.get("assigned_to"),
-                    "due_date": action_item_data.get("due_date"),
-                },
-            )
-            if chunk:
-                assigned_user = None
-                
-                # First, try to find user by mentioned name in transcript
-                assignee_name = action_item_data.get("assigned_to")
-                if assignee_name:
-                    assigned_user = db.query(User).filter(
-                        User.username.ilike(assignee_name)
-                    ).first()
-                
-                # If no explicit assignment, apply workspace assignment rules
-                if not assigned_user:
-                    assigned_user = await _apply_assignment_rules(
-                        db=db,
-                        workspace_id=workspace_id,
-                        action_description=action_item_data.get("description", ""),
-                    )
-                
-                # Create ActionItem if we have an assigned user
-                if assigned_user:
-                    action_item = ActionItem(
-                        memory_chunk_id=chunk.id,
-                        assigned_to_user_id=assigned_user.id,
-                        description=action_item_data.get("description", ""),
-                        status=ActionItemStatus.OPEN,
-                    )
-                    db.add(action_item)
-                
-                created_chunks.append(chunk)
+        if extraction_results:
+            # Store decisions
+            for decision in extraction_results.get("decisions", []):
+                chunk = await _store_memory_chunk(
+                    db=db,
+                    workspace_id=workspace_id,
+                    meeting_id=meeting_id,
+                    content=decision,
+                    chunk_type=ChunkType.DECISION,
+                    metadata=chunk_metadata,
+                )
+                if chunk:
+                    created_chunks.append(chunk)
+            
+            # Store discussion points
+            for discussion in extraction_results.get("discussions", []):
+                chunk = await _store_memory_chunk(
+                    db=db,
+                    workspace_id=workspace_id,
+                    meeting_id=meeting_id,
+                    content=discussion,
+                    chunk_type=ChunkType.DISCUSSION,
+                    metadata=chunk_metadata,
+                )
+                if chunk:
+                    created_chunks.append(chunk)
+            
+            # Store action items and create ActionItem records
+            for action_item_data in extraction_results.get("action_items", []):
+                chunk = await _store_memory_chunk(
+                    db=db,
+                    workspace_id=workspace_id,
+                    meeting_id=meeting_id,
+                    content=action_item_data.get("description", ""),
+                    chunk_type=ChunkType.ACTION_ITEM,
+                    metadata={
+                        **chunk_metadata,
+                        "assigned_to": action_item_data.get("assigned_to"),
+                        "due_date": action_item_data.get("due_date"),
+                    },
+                )
+                if chunk:
+                    assigned_user = None
+                    
+                    # First, try to find user by mentioned name in transcript
+                    assignee_name = action_item_data.get("assigned_to")
+                    if assignee_name:
+                        assigned_user = db.query(User).filter(
+                            User.username.ilike(assignee_name)
+                        ).first()
+                    
+                    # If no explicit assignment, apply workspace assignment rules
+                    if not assigned_user:
+                        assigned_user = await _apply_assignment_rules(
+                            db=db,
+                            workspace_id=workspace_id,
+                            action_description=action_item_data.get("description", ""),
+                        )
+                    
+                    # Create ActionItem if we have an assigned user
+                    if assigned_user:
+                        action_item = ActionItem(
+                            memory_chunk_id=chunk.id,
+                            assigned_to_user_id=assigned_user.id,
+                            description=action_item_data.get("description", ""),
+                            status=ActionItemStatus.OPEN,
+                        )
+                        db.add(action_item)
+                    
+                    created_chunks.append(chunk)
         
         db.commit()
+
+        extracted_memories = extract_memories_from_transcript(
+            transcript=transcript,
+            meeting_id=meeting_id,
+            workspace_id=workspace_id,
+        )
+        if extracted_memories:
+            _apply_shared_memory_metadata(extracted_memories, chunk_metadata)
+            bulk_save_memories(db, extracted_memories)
+
         return created_chunks
     
     except Exception as e:
@@ -160,7 +171,7 @@ async def _extract_elements_from_transcript(transcript: str) -> Optional[Dict[st
     Returns:
         Dict with keys: decisions, action_items, discussions
     """
-    if not settings.OLLAMA_ENABLED:
+    if not settings.OLLAMA_ENABLED or ollama is None:
         return None
     
     prompt = f"""Analyze the following meeting transcript and extract:
@@ -268,7 +279,7 @@ async def _store_memory_chunk(
             content=content,
             embedding=embedding,
             chunk_type=chunk_type,
-            metadata=chunk_metadata,
+            chunk_metadata=chunk_metadata,
         )
         db.add(chunk)
         db.flush()  # Get the ID without committing
@@ -411,9 +422,35 @@ def retrieve_memory_chunks_by_role(
     # Filter by role tags in metadata
     filtered = []
     for chunk in chunks:
-        metadata = chunk.metadata or {}
+        metadata = chunk.chunk_metadata or {}
         chunk_roles = metadata.get("role_tags", [])
         if not chunk_roles or any(role in role_tags for role in chunk_roles):
             filtered.append(chunk)
     
     return filtered
+
+
+def _apply_shared_memory_metadata(
+    memories: List[Dict[str, Any]],
+    shared_metadata: Dict[str, Any],
+) -> None:
+    shared_role_tags = shared_metadata.get("role_tags", [])
+    for memory in memories:
+        metadata = dict(memory.get("metadata") or {})
+        role_tags = metadata.get("role_tags", [])
+        metadata.update(shared_metadata)
+        metadata["role_tags"] = _merge_role_tags(role_tags, shared_role_tags)
+        memory["metadata"] = metadata
+
+
+def _merge_role_tags(*groups: List[str]) -> List[str]:
+    seen = set()
+    merged = []
+    for group in groups:
+        for role in group or []:
+            cleaned = str(role).strip().lower()
+            if not cleaned or cleaned in seen:
+                continue
+            seen.add(cleaned)
+            merged.append(cleaned)
+    return merged
