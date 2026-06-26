@@ -12,7 +12,7 @@ The experience is comparable to “Google Docs + VS Code + Cursor + Figma + Zoom
 
 ---
 
-## ✨ Implemented Capabilities
+##  Implemented Capabilities
 
 - Real-time collaborative browser sessions via Neko WebRTC streaming (fully integrated)
 - Working hours tracker with HR/salary calculation capability and supervisor visibility
@@ -41,7 +41,7 @@ Full details and rationale are in the **[Project Charter](docs/charter.md)** —
 
 ---
 
-## 🏗️ Tech Stack & Architecture
+##  Tech Stack & Architecture
 
 | Layer              | Technology                                      | Notes |
 |--------------------|-------------------------------------------------|-------|
@@ -58,7 +58,7 @@ See **[docs/architecture.md](docs/architecture.md)** for data models, API design
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Local Development (Recommended)
 
@@ -105,7 +105,7 @@ Compact profile (default) is tuned for the free tier. Standard profile available
 
 ---
 
-## 📚 Documentation
+##  Documentation
 
 - **[Project Charter](docs/charter.md)** — Vision, implemented features (Phase 4), security & privacy framework, compliance targets, workflow, governance, target users, and risk mitigations. **Single source of truth**.
 - **[Architecture Specification](docs/architecture.md)** — High-level design, core data models, API endpoints, security implementation guidelines.
@@ -113,7 +113,7 @@ Compact profile (default) is tuned for the free tier. Standard profile available
 
 ---
 
-## 🔒 Security, Privacy, Compliance & Accessibility
+##  Security, Privacy, Compliance & Accessibility
 
 Nova is built for worldwide enterprise adoption and broad accessibility:
 
