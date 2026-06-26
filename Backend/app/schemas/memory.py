@@ -1,7 +1,7 @@
 """Pydantic schemas for Memory model."""
 
 from typing import Optional, Any, Dict, List
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 from datetime import datetime
 from app.models.memory import MemoryType
 
@@ -16,6 +16,22 @@ class MemoryCreate(BaseModel):
     source_meeting_id: Optional[int] = Field(None, description="Source meeting ID if applicable")
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional metadata")
     
+    class Config:
+        from_attributes = True
+
+
+class MemoryExtracted(BaseModel):
+    """Schema for extracted meeting memories before persistence."""
+
+    workspace_id: int = Field(..., description="Workspace ID")
+    source_meeting_id: Optional[int] = Field(None, description="Meeting ID where the memory came from")
+    user_id: Optional[int] = Field(None, description="Optional user ID for personal memory ownership")
+    memory_type: MemoryType = Field(..., description="Extracted memory type")
+    content: str = Field(..., min_length=1, description="Concise normalized memory summary")
+    raw_excerpt: str = Field(..., min_length=1, description="Raw transcript excerpt backing the extracted memory")
+    structured_data: Dict[str, Any] = Field(default_factory=dict, description="Structured extraction details")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Supplemental metadata for storage")
+
     class Config:
         from_attributes = True
 
@@ -43,7 +59,11 @@ class MemoryResponse(BaseModel):
     source_meeting_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        validation_alias=AliasChoices("metadata", "memory_metadata"),
+        serialization_alias="metadata",
+    )
     
     class Config:
         from_attributes = True

@@ -7,7 +7,6 @@ Endpoints for ingesting meeting transcripts, retrieving memory chunks, and manag
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
-import ollama
 
 from app.core.database import get_db
 from app.core.auth import get_current_user
@@ -32,6 +31,11 @@ from app.services.memory_surfacing import (
     get_team_action_items_summary,
     get_relevant_decisions_for_context,
 )
+
+try:
+    import ollama
+except ImportError:  # pragma: no cover - depends on optional local runtime setup
+    ollama = None
 
 router = APIRouter(prefix="/api/v1/memory", tags=["memory"])
 
@@ -149,7 +153,7 @@ async def list_memory_chunks(
                 "id": c.id,
                 "type": c.chunk_type.value,
                 "content": c.content,
-                "metadata": c.metadata,
+                "metadata": c.chunk_metadata,
                 "created_at": c.created_at.isoformat(),
             }
             for c in chunks
@@ -731,6 +735,9 @@ USER QUESTION: {user_query}
 
 ANSWER:"""
     
+    if ollama is None:
+        return "Local LLM support is not installed in this environment."
+
     try:
         client = ollama.Client(host=settings.OLLAMA_URL)
         response = client.generate(

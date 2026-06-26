@@ -8,11 +8,15 @@ Retrieves relevant chunks based on query embeddings and applies role-based filte
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-import ollama
 
 from app.core.config import settings
 from app.models.memory_chunk import MemoryChunk, ChunkType
 from app.models.user import User
+
+try:
+    import ollama
+except ImportError:  # pragma: no cover - depends on optional local runtime setup
+    ollama = None
 
 
 class SemanticSearchResult:
@@ -29,7 +33,7 @@ class SemanticSearchResult:
             "content": self.chunk.content,
             "type": self.chunk.chunk_type.value,
             "similarity": self.similarity,
-            "metadata": self.chunk.metadata,
+            "metadata": self.chunk.chunk_metadata,
             "created_at": self.chunk.created_at.isoformat() if self.chunk.created_at else None,
         }
 
@@ -47,7 +51,7 @@ async def generate_query_embedding(query: str) -> Optional[List[float]]:
     Returns:
         Embedding vector or None if failed
     """
-    if not settings.OLLAMA_ENABLED:
+    if not settings.OLLAMA_ENABLED or ollama is None:
         return None
     
     try:
@@ -166,7 +170,7 @@ def _can_access_chunk(user: User, chunk: MemoryChunk) -> bool:
     if user.role == "admin":
         return True
     
-    role_tags = chunk.metadata.get("role_tags", []) if chunk.metadata else []
+    role_tags = chunk.chunk_metadata.get("role_tags", []) if chunk.chunk_metadata else []
     if not role_tags:
         return True
     

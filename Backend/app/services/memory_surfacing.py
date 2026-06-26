@@ -113,7 +113,7 @@ def get_recent_decisions(
         role_tags = [role, "general"]
         filtered = []
         for decision in decisions:
-            metadata = decision.metadata or {}
+            metadata = decision.chunk_metadata or {}
             chunk_roles = metadata.get("role_tags", [])
             if not chunk_roles or any(r in role_tags for r in chunk_roles):
                 filtered.append({
@@ -283,7 +283,7 @@ def get_relevant_decisions_for_context(
         if role_tags:
             filtered = []
             for decision in decisions:
-                metadata = decision.metadata or {}
+                metadata = decision.chunk_metadata or {}
                 chunk_roles = metadata.get("role_tags", [])
                 if not chunk_roles or any(role in role_tags for role in chunk_roles):
                     filtered.append(decision)

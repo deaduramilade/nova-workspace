@@ -2,8 +2,12 @@ from enum import Enum
 from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Enum as SQLEnum, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from pgvector.sqlalchemy import Vector
 from app.core.database import Base
+
+try:
+    from pgvector.sqlalchemy import Vector
+except ImportError:  # pragma: no cover - optional dependency in local dev
+    Vector = None
 
 
 class ChunkType(str, Enum):
@@ -25,9 +29,9 @@ class MemoryChunk(Base):
     workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=False, index=True)
     meeting_id = Column(Integer, nullable=True, index=True)  # Reference to meeting/session
     content = Column(Text, nullable=False)
-    embedding = Column(Vector(1536), nullable=True)  # OpenAI embedding dimension
+    embedding = Column(Vector(1536) if Vector else JSON, nullable=True)  # Falls back to JSON when pgvector is unavailable
     chunk_type = Column(SQLEnum(ChunkType), nullable=False, default=ChunkType.DISCUSSION)
-    metadata = Column(JSON, nullable=True, default={})  # role tags, user_id, timestamp, etc.
+    chunk_metadata = Column("metadata", JSON, nullable=True, default={})  # role tags, user_id, timestamp, etc.
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

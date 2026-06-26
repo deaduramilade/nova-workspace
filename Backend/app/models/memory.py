@@ -41,7 +41,7 @@ class Memory(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Additional metadata
-    metadata = Column(JSON, nullable=True, default={})
+    memory_metadata = Column("metadata", JSON, nullable=True, default={})
     
     # Relationships
     workspace = relationship("Workspace", backref="memories")
