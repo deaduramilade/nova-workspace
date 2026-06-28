@@ -38,3 +38,20 @@ def encrypt_data(data: bytes) -> tuple[bytes, bytes]:
 def decrypt_data(ciphertext: bytes, nonce: bytes) -> bytes:
     aesgcm = AESGCM(settings.ENCRYPTION_KEY.encode()[:32])
     return aesgcm.decrypt(nonce, ciphertext, None)
+
+
+def create_refresh_token(data: dict):
+    """Create a refresh token (longer expiry) with a JTI for rotation.
+
+    The token payload includes a `jti` field (unique id) which should be stored
+    server-side (e.g., in the AdminSession) to support revocation and rotation.
+    Returns: (token, jti, expiry_datetime)
+    """
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    # generate a jti
+    import uuid as _uuid
+    jti = str(_uuid.uuid4())
+    to_encode.update({"exp": expire, "jti": jti})
+    token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return token, jti, expire

@@ -106,6 +106,10 @@ class AdminSession(Base):
     # Permissions and scope
     scope = Column(String, default="admin")  # admin, hr, supervisor, etc.
     can_approve_role_changes = Column(Boolean, default=False)
+
+    # Refresh token rotation support
+    refresh_token_jti = Column(String, nullable=True, index=True)
+    refresh_token_expires_at = Column(DateTime(timezone=True), nullable=True)
     
     user = relationship("User", back_populates="admin_sessions")
     device = relationship("DeviceFingerprint", back_populates="sessions")
